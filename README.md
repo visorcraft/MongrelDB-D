@@ -1,12 +1,20 @@
-# MongrelDB D Client
+<p align="center">
+  <img src="assets/mongrel.png" alt="MongrelDB logo" width="250" />
+</p>
 
-MongrelDB D Client is the pure D HTTP client for [MongrelDB](https://www.MongrelDB.com). It gives D applications a typed CRUD surface, a fluent query builder that pushes conditions down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, and schema introspection - all over HTTP to a running `mongreldb-server` daemon.
+<h1 align="center">MongrelDB D Client</h1>
 
-No C ABI bindings and no external DUB dependencies - built on the standard library `std.net.curl` and `std.json`. The API mirrors the MongrelDB PHP, Go, and Java clients.
+<p align="center">
+  <b>Pure D client for MongrelDB - embedded+server database with SQL, vector search, full-text search, and AI-native retrieval.</b>
+  <br />
+  No C ABI bindings and no external DUB dependencies - built on the standard library <code>std.net.curl</code> and <code>std.json</code>. The API mirrors the MongrelDB PHP, Go, and Java clients.
+</p>
 
-[![D](https://img.shields.io/badge/D-%3E%3D2.100-b03203.svg)](https://dlang.org/)
-[![CI](https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml/badge.svg)](https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+<p align="center">
+  <a href="https://dlang.org/"><img src="https://img.shields.io/badge/D-%3E%3D2.100-b03203.svg" alt="D" /></a>
+  <a href="https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml"><img src="https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>
+</p>
 
 ## Package
 
