@@ -1,0 +1,26 @@
+# Agent / assistant instruction files are workspace-local, never published
+AGENTS.md
+
+# D build artifacts
+build/
+.dub/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Logs
+*.log
+
+# OS and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
