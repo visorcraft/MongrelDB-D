@@ -25,7 +25,7 @@ Exception
 
 | Class                  | HTTP status         | Meaning |
 |------------------------|---------------------|---------|
-| `MongrelDBException`   | —                   | Base class for every client failure. Catch this to handle any error. |
+| `MongrelDBException`   | -                   | Base class for every client failure. Catch this to handle any error. |
 | `AuthException`        | 401, 403            | Bad or missing credentials. |
 | `NotFoundException`    | 404                 | Missing table, schema, or resource. |
 | `ConflictException`    | 409                 | Unique / foreign-key / check / trigger violation rolled back a transaction. |
@@ -130,7 +130,7 @@ JSONValue[] commitWithRetry(Transaction txn, string key)
         }
         catch (ConflictException e)
         {
-            // Constraint violation — fix the data, do not retry blindly.
+            // Constraint violation - fix the data, do not retry blindly.
             throw e;
         }
         catch (QueryException e)
@@ -163,7 +163,7 @@ methods when you want to know what went wrong:
 ```d
 if (!db.health())
 {
-    writeln("daemon down — check the URL and auth");
+    writeln("daemon down - check the URL and auth");
 }
 ```
 
@@ -188,5 +188,5 @@ guessing game.
 
 ## Next steps
 
-- [transactions.md](transactions.md) — atomic batches and idempotency
-- [auth.md](auth.md) — where `AuthException` comes from
+- [transactions.md](transactions.md) - atomic batches and idempotency
+- [auth.md](auth.md) - where `AuthException` comes from

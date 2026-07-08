@@ -1,4 +1,4 @@
-// mongreldb.query — fluent query builder for the /kit/query endpoint.
+// mongreldb.query - fluent query builder for the /kit/query endpoint.
 //
 // A QueryBuilder builds a request for the daemon's /kit/query endpoint, where
 // conditions push down to the engine's specialized indexes for sub-millisecond

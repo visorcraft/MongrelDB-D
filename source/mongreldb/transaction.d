@@ -1,4 +1,4 @@
-// mongreldb.transaction — staging buffer for atomic batch commits.
+// mongreldb.transaction - staging buffer for atomic batch commits.
 //
 // A Transaction stages operations locally and commits them atomically in a
 // single /kit/txn request. The engine enforces unique, foreign-key, check, and
@@ -93,7 +93,7 @@ class Transaction
     ///
     /// Send all staged operations atomically and return the per-operation
     /// results. `idempotencyKey`, when non-empty, makes the commit safe to
-    /// retry — the daemon returns the original response on duplicate commits,
+    /// retry - the daemon returns the original response on duplicate commits,
     /// even after a crash.
     ///
     /// Throws: `Exception` if called twice on the same transaction;

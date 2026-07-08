@@ -2,10 +2,10 @@
 
 A `mongreldb-server` daemon runs in one of three modes:
 
-1. **Open** (default) — no auth required.
-2. **Bearer token** (`--auth-token <TOKEN>`) — every request must carry an
+1. **Open** (default) - no auth required.
+2. **Bearer token** (`--auth-token <TOKEN>`) - every request must carry an
    `Authorization: Bearer <TOKEN>` header.
-3. **HTTP Basic** (`--auth-users`) — every request must carry an
+3. **HTTP Basic** (`--auth-users`) - every request must carry an
    `Authorization: Basic <base64(user:pass)>` header.
 
 The D client supports all three through the four-argument constructor. This
@@ -169,5 +169,5 @@ against a Basic-auth daemon (or vice versa) will not work.
 
 ## Next steps
 
-- [errors.md](errors.md) — `AuthException` and the rest of the hierarchy
-- [quickstart.md](quickstart.md) — the full end-to-end walkthrough
+- [errors.md](errors.md) - `AuthException` and the rest of the hierarchy
+- [quickstart.md](quickstart.md) - the full end-to-end walkthrough

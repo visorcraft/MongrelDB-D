@@ -1,6 +1,6 @@
 {
     "name": "mongreldb",
-    "description": "Pure D HTTP client for MongrelDB — typed CRUD, fluent query builder, idempotent batch transactions, SQL, and schema introspection.",
+    "description": "Pure D HTTP client for MongrelDB - typed CRUD, fluent query builder, idempotent batch transactions, SQL, and schema introspection.",
     "homepage": "https://www.MongrelDB.com",
     "authors": [
         "Visorcraft"

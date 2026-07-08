@@ -49,7 +49,7 @@ txn.delete("orders", 7);
 ```
 
 `put(table, cells, returning)` stages an insert. Set `returning = true` to ask
-the daemon to echo the written row back in the per-operation result — useful
+the daemon to echo the written row back in the per-operation result - useful
 when you want server-generated values without a second round trip.
 
 `count` reports how many ops are staged:
@@ -81,7 +81,7 @@ is an object; its shape depends on the op and the `returning` flag.
 ## Idempotency keys
 
 `commit(idempotencyKey)` makes the commit safe to retry. Pass a stable,
-unique key — the daemon stores it and returns the original response on
+unique key - the daemon stores it and returns the original response on
 duplicate commits, even across daemon restarts:
 
 ```d
@@ -91,7 +91,7 @@ txn.put("orders",
     false);
 
 // If this call times out or the network drops, replaying the same ops under
-// the same key is safe — the daemon deduplicates.
+// the same key is safe - the daemon deduplicates.
 txn.commit("order-20-create");
 ```
 
@@ -168,14 +168,14 @@ JSONValue[] commitWithRetry(Transaction txn, string key)
         }
         catch (ConflictException e)
         {
-            // Constraint violation — do NOT retry blindly. Fix the data.
+            // Constraint violation - do NOT retry blindly. Fix the data.
             throw e;
         }
         catch (QueryException e)
         {
             if (e.status == -1 || (e.status >= 500 && e.status < 600))
             {
-                // transport or server error — safe to retry with the same key
+                // transport or server error - safe to retry with the same key
                 Thread.sleep(dur!("msecs")(100));
                 continue;
             }
@@ -200,7 +200,7 @@ key.
 is not synchronized. Stage and commit from one flow of control.
 
 **Expecting per-op atomicity.** The atomicity unit is the whole batch. A
-single bad op rolls back the good ones too — that is the point. Validate data
+single bad op rolls back the good ones too - that is the point. Validate data
 before staging if you want to avoid the round trip.
 
 **Swallowing `ConflictException`.** The `.code` and `.opIndex` fields tell you
@@ -209,6 +209,6 @@ a quick fix and a guessing game.
 
 ## Next steps
 
-- [queries.md](queries.md) — read patterns
-- [errors.md](errors.md) — the full exception hierarchy
-- [sql.md](sql.md) — when to choose SQL over the typed API
+- [queries.md](queries.md) - read patterns
+- [errors.md](errors.md) - the full exception hierarchy
+- [sql.md](sql.md) - when to choose SQL over the typed API

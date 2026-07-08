@@ -1,7 +1,7 @@
-// mongreldb.client — pure D HTTP client for MongrelDB.
+// mongreldb.client - pure D HTTP client for MongrelDB.
 //
 // This module talks to a running mongreldb-server daemon's JSON API over the
-// standard library std.net.curl HTTP client — no C ABI bindings to the engine,
+// standard library std.net.curl HTTP client - no C ABI bindings to the engine,
 // no external DUB dependencies. The surface mirrors the MongrelDB PHP, Go, and
 // Java clients: typed CRUD, a fluent query builder that pushes conditions down
 // to the engine's native indexes, idempotent batch transactions, full SQL
@@ -44,7 +44,7 @@ enum defaultBaseURL = "http://127.0.0.1:8453";
 ///
 /// A column id → value pair. The client flattens a slice of cells to the
 /// server's on-wire `[col_id, value, col_id, value, ...]` array before
-/// sending. Pair order is irrelevant — each value is preceded by its own
+/// sending. Pair order is irrelevant - each value is preceded by its own
 /// column id.
 struct Cell
 {
@@ -146,7 +146,7 @@ class MongrelDBException : Exception
 }
 
 ///
-/// Raised for HTTP 401 or 403 — bad or missing credentials.
+/// Raised for HTTP 401 or 403 - bad or missing credentials.
 class AuthException : MongrelDBException
 {
     this(string msg, int status = -1, string code = null,
@@ -158,7 +158,7 @@ class AuthException : MongrelDBException
 }
 
 ///
-/// Raised for HTTP 404 — a missing table, schema, or other resource.
+/// Raised for HTTP 404 - a missing table, schema, or other resource.
 class NotFoundException : MongrelDBException
 {
     this(string msg, int status = -1, string code = null,
@@ -170,7 +170,7 @@ class NotFoundException : MongrelDBException
 }
 
 ///
-/// Raised for HTTP 409 — a unique, foreign-key, check, or trigger constraint
+/// Raised for HTTP 409 - a unique, foreign-key, check, or trigger constraint
 /// violation. During a transaction commit the engine enforces all constraints
 /// at commit time; on any violation every staged op rolls back.
 class ConflictException : MongrelDBException
@@ -339,7 +339,7 @@ class MongrelDBClient
 
     ///
     /// Insert a row. `idempotencyKey`, when non-empty, makes the commit safe
-    /// to retry — the daemon returns the original result on duplicate commits.
+    /// to retry - the daemon returns the original result on duplicate commits.
     ///
     /// Returns the per-operation result object (the first element of the
     /// server's results array), or an empty object if none.
@@ -893,7 +893,7 @@ private bool isUnreservedOrSlash(ubyte b) pure nothrow @nogc
 }
 
 // JSONValue constructors that take a plain string are not implicit; wrap them.
-// (std.json provides JSONValue(string) — no extra alias needed.)
+// (std.json provides JSONValue(string) - no extra alias needed.)
 
 unittest
 {

@@ -1,4 +1,4 @@
-// mongreldb — public package root for the MongrelDB D client.
+// mongreldb - public package root for the MongrelDB D client.
 //
 // Re-exports the main client, transaction, and query builder modules. Import
 // the whole client surface with:

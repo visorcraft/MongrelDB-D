@@ -1,8 +1,8 @@
 # MongrelDB D Client
 
-MongrelDB D Client is the pure D HTTP client for [MongrelDB](https://www.MongrelDB.com). It gives D applications a typed CRUD surface, a fluent query builder that pushes conditions down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, and schema introspection — all over HTTP to a running `mongreldb-server` daemon.
+MongrelDB D Client is the pure D HTTP client for [MongrelDB](https://www.MongrelDB.com). It gives D applications a typed CRUD surface, a fluent query builder that pushes conditions down to MongrelDB's native indexes, idempotent batch transactions, full SQL access, and schema introspection - all over HTTP to a running `mongreldb-server` daemon.
 
-No C ABI bindings and no external DUB dependencies — built on the standard library `std.net.curl` and `std.json`. The API mirrors the MongrelDB PHP, Go, and Java clients.
+No C ABI bindings and no external DUB dependencies - built on the standard library `std.net.curl` and `std.json`. The API mirrors the MongrelDB PHP, Go, and Java clients.
 
 [![D](https://img.shields.io/badge/D-%3E%3D2.100-b03203.svg)](https://dlang.org/)
 [![CI](https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml/badge.svg)](https://github.com/visorcraft/MongrelDB-D/actions/workflows/ci.yml)
@@ -23,7 +23,7 @@ No C ABI bindings and no external DUB dependencies — built on the standard lib
 
 - **Typed CRUD** over the Kit transaction endpoint: `put` (insert), and `deleteByPk` (delete by primary key), with optional idempotency keys for safe retries.
 - **Fluent query builder** that pushes conditions down to the engine's specialized indexes for sub-millisecond lookups: bitmap equality/IN, learned-range, null checks, FM-index full-text search, HNSW vector similarity (`ann`), and sparse vector match. Friendly aliases (`column` → `column_id`, `min`/`max` → `lo`/`hi`) are translated to the server's on-wire keys.
-- **Idempotent batch transactions** — operations staged locally and committed atomically, with the engine enforcing unique, foreign-key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
+- **Idempotent batch transactions** - operations staged locally and committed atomically, with the engine enforcing unique, foreign-key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
 - **Full SQL access** through the DataFusion-backed `/sql` endpoint: recursive CTEs, window functions, `CREATE TABLE AS SELECT`, materialized views, and multi-statement execution.
 - **Schema management**: typed table creation, full schema catalog, and per-table descriptors.
 - **Typed exceptions**: `AuthException` (401/403), `NotFoundException` (404), `ConflictException` (409, with error code + op index), and `QueryException` (everything else), all subclasses of `MongrelDBException` carrying the HTTP status and decoded server envelope.
@@ -35,12 +35,12 @@ No C ABI bindings and no external DUB dependencies — built on the standard lib
 Runnable, end-to-end programs and deep dives for every feature live in
 [`docs/`](docs/):
 
-- [Quickstart](docs/quickstart.md) — install, start the daemon, write and run a complete program.
-- [Batch transactions](docs/transactions.md) — atomic multi-op commits, idempotency, and retry.
-- [Native query builder](docs/queries.md) — every condition type and the alias translation rules.
-- [SQL](docs/sql.md) — recursive CTEs, window functions, `CREATE TABLE AS SELECT`.
-- [Authentication](docs/auth.md) — bearer token, basic auth, and user/role management via SQL.
-- [Error handling](docs/errors.md) — the exception hierarchy and recovery patterns.
+- [Quickstart](docs/quickstart.md) - install, start the daemon, write and run a complete program.
+- [Batch transactions](docs/transactions.md) - atomic multi-op commits, idempotency, and retry.
+- [Native query builder](docs/queries.md) - every condition type and the alias translation rules.
+- [SQL](docs/sql.md) - recursive CTEs, window functions, `CREATE TABLE AS SELECT`.
+- [Authentication](docs/auth.md) - bearer token, basic auth, and user/role management via SQL.
+- [Error handling](docs/errors.md) - the exception hierarchy and recovery patterns.
 
 ## Quick Example
 
@@ -107,7 +107,7 @@ txn.deleteByPk("orders", JSONValue(2L));
 
 try
 {
-    auto results = txn.commit(); // atomic — all or nothing
+    auto results = txn.commit(); // atomic - all or nothing
 }
 catch (ConflictException e)
 {
@@ -115,7 +115,7 @@ catch (ConflictException e)
     writeln("duplicate: ", e.msg, " code=", e.code, " op=", e.opIndex);
 }
 
-// Idempotent commit — safe to retry; the daemon returns the original response.
+// Idempotent commit - safe to retry; the daemon returns the original response.
 auto txn2 = db.begin();
 txn2.put("orders", [Cell.of(1, 20L), Cell.of(2, "Frank"), Cell.of(3, 100.00)], false);
 txn2.commit("order-20-create");
@@ -272,7 +272,7 @@ catch (QueryException e)
 
 | Class | HTTP status | Meaning |
 |-------|-------------|---------|
-| `MongrelDBException` | — | Base class for every client failure |
+| `MongrelDBException` | - | Base class for every client failure |
 | `AuthException` | 401, 403 | Bad or missing credentials |
 | `NotFoundException` | 404 | Missing table, schema, or resource |
 | `ConflictException` | 409 | Unique/FK/check/trigger violation |
@@ -315,7 +315,7 @@ chmod +x bin/mongreldb-server
 Contributions are welcome. Please:
 
 1. Open an issue first for non-trivial changes.
-2. Add focused tests near your change — the suite must stay green.
+2. Add focused tests near your change - the suite must stay green.
 3. Keep the client dependency-free (Phobos only) and free of engine C ABI bindings.
 
 ## License
