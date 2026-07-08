@@ -1,0 +1,45 @@
+{
+    "name": "mongreldb",
+    "description": "Pure D HTTP client for MongrelDB — typed CRUD, fluent query builder, idempotent batch transactions, SQL, and schema introspection.",
+    "homepage": "https://www.MongrelDB.com",
+    "authors": [
+        "Visorcraft"
+    ],
+    "copyright": "Copyright © 2026 Visorcraft",
+    "license": "MIT OR Apache-2.0",
+    "targetType": "library",
+    "targetPath": "build",
+    "dflags-dmd": [
+        "-preview=dip1000"
+    ],
+    "buildTypes": {
+        "release": {
+            "buildOptions": [
+                "releaseMode",
+                "optimize",
+                "inline"
+            ]
+        }
+    },
+    "configurations": [
+        {
+            "name": "library",
+            "targetType": "library",
+            "excludedSourceFiles": [
+                "tests/*"
+            ]
+        },
+        {
+            "name": "unittest",
+            "targetType": "library",
+            "excludedSourceFiles": [
+                "tests/*"
+            ]
+        },
+        {
+            "name": "live-test",
+            "targetType": "executable",
+            "mainSourceFile": "tests/main.d"
+        }
+    ]
+}
