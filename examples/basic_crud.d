@@ -70,9 +70,16 @@ int main()
         writeln("  ", row);
     }
 
-    // Update Alice's score by re-putting the same primary key with new values.
-    // The PK is the row identity, so a put to an existing PK overwrites it.
-    db.put(table, [Cell.of(1, 1L), Cell.of(2, "Alice"), Cell.of(3, 100.0)], null);
+    // Update Alice's score. `put` is insert-only and raises a uniqueness
+    // conflict on an existing primary key, so `upsert` is used instead:
+    // `cells` selects the row by its primary key and `updateCells` carries
+    // the columns to overwrite on conflict.
+    db.upsert(
+        table,
+        [Cell.of(1, 1L)],
+        [Cell.of(2, "Alice"), Cell.of(3, 100.0)],
+        null
+    );
     writeln("Updated Alice's score to 100.0");
     writeln("Total rows after update: ", db.count(table));
 
