@@ -1,0 +1,75 @@
+// Example: basic CRUD operations with the MongrelDB D client.
+//
+// Run (from a project with mongreldb as a DUB dependency):
+//
+//   dub run
+//
+// Or compile directly against the vendored source:
+//
+//   ldc2 -Isource examples/basic_crud.d
+//
+// Requires a mongreldb-server daemon running on http://127.0.0.1:8453.
+//
+// Creates a table, inserts three rows, counts them, queries all rows, "updates"
+// one row by overwriting it at its primary key, deletes one row, then drops
+// the table. Progress is printed at every step.
+
+import mongreldb;
+import mongreldb.client : Cell, Column;
+
+import std.json : JSONValue;
+import std.stdio : writeln, stderr;
+
+void main()
+{
+    enum url = "http://127.0.0.1:8453";
+    enum table = "example_crud";
+
+    auto db = new MongrelDBClient(url);
+
+    // Health check; bail out if the daemon is unreachable.
+    if (!db.health())
+    {
+        stderr.writeln("daemon not reachable at ", url);
+        return;
+    }
+    writeln("Connected to MongrelDB");
+
+    // Create the table. Schema: id (int64 PK), name (varchar), score (float64).
+    long tid = db.createTable(table, [
+        Column(1, "id", "int64", true, false),
+        Column(2, "name", "varchar", false, false),
+        Column(3, "score", "float64", false, false),
+    ]);
+    writeln("Created table ", table, " (id ", tid, ")");
+
+    // Insert three rows. Cell.of pairs a column id with a value.
+    db.put(table, [Cell.of(1, 1L), Cell.of(2, "Alice"), Cell.of(3, 95.5)], null);
+    db.put(table, [Cell.of(1, 2L), Cell.of(2, "Bob"), Cell.of(3, 82.0)], null);
+    db.put(table, [Cell.of(1, 3L), Cell.of(2, "Carol"), Cell.of(3, 78.3)], null);
+    writeln("Inserted 3 rows");
+
+    writeln("Total rows: ", db.count(table));
+
+    // Query all rows (no conditions).
+    auto all = db.query(table).execute();
+    writeln("Query returned ", all.length, " rows:");
+    foreach (row; all)
+    {
+        writeln("  ", row);
+    }
+
+    // Update Alice's score by re-putting the same primary key with new values.
+    // The PK is the row identity, so a put to an existing PK overwrites it.
+    db.put(table, [Cell.of(1, 1L), Cell.of(2, "Alice"), Cell.of(3, 100.0)], null);
+    writeln("Updated Alice's score to 100.0");
+    writeln("Total rows after update: ", db.count(table));
+
+    // Delete Carol (primary key 3).
+    db.deleteByPk(table, JSONValue(3L));
+    writeln("Deleted Carol; remaining rows: ", db.count(table));
+
+    // Cleanup.
+    db.dropTable(table);
+    writeln("Dropped table ", table);
+}
