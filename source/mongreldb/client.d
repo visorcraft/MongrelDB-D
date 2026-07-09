@@ -42,6 +42,11 @@ import std.typecons : Nullable;
 enum defaultBaseURL = "http://127.0.0.1:8453";
 
 ///
+/// Caps the size of a response body read from the daemon (256 MB). Bodies
+/// larger than this are aborted with a `QueryException`.
+enum maxResponseBytes = 268435456;
+
+///
 /// A column id → value pair. The client flattens a slice of cells to the
 /// server's on-wire `[col_id, value, col_id, value, ...]` array before
 /// sending. Pair order is irrelevant - each value is preceded by its own
@@ -437,15 +442,16 @@ class MongrelDBClient
     // ── SQL ──────────────────────────────────────────────────────────────
 
     ///
-    /// Execute a SQL statement via the `/sql` endpoint. When the daemon
-    /// returns a JSON result set, the rows are decoded and returned; for
-    /// statements that yield no rows (DDL/DML) or a non-JSON (Arrow IPC) body,
-    /// it returns an empty array and does not throw.
+    /// Execute a SQL statement via the `/sql` endpoint, requesting JSON output.
+    /// The server returns a JSON array of row objects keyed by column name, e.g.
+    /// `[{"id": 1, "name": "Alice", "score": 95.5}]`. For statements that yield
+    /// no rows (DDL/DML), the body is empty and an empty array is returned.
     JSONValue[] sql(string sqlText)
     {
         auto payload = JSONValue([JSONValue()]);
         payload.object = null;
         payload["sql"] = JSONValue(sqlText);
+        payload["format"] = JSONValue("json");
 
         string body = postRaw("/sql", payload);
         string trimmed = strip(body);
@@ -453,9 +459,10 @@ class MongrelDBClient
         {
             return [];
         }
-        // The /sql endpoint generally streams Arrow IPC bytes for SELECTs; only
-        // decode when the body is actually JSON to avoid noise.
-        if (trimmed[0] != '{' && trimmed[0] != '[')
+        // JSON format requested; a leading '{' is a single object (e.g. an
+        // error envelope), not a row set, so return an empty array. A '['
+        // begins the row array to decode.
+        if (trimmed[0] != '[')
         {
             return [];
         }
@@ -582,6 +589,12 @@ class MongrelDBClient
         auto buf = appender!string;
         http.onReceive = (ubyte[] data)
         {
+            // Cap the download: abort once the buffered body would exceed
+            // maxResponseBytes so an oversized response is not buffered fully.
+            if (buf.data.length + data.length > maxResponseBytes)
+            {
+                return cast(size_t) 0;
+            }
             buf.put(cast(string) data);
             return data.length;
         };
@@ -604,6 +617,13 @@ class MongrelDBClient
 
         int status = http.statusLine.code;
         string response = buf.data;
+
+        // An oversized body (aborted mid-read or otherwise) is a Query error.
+        if (response.length > maxResponseBytes)
+        {
+            throw new QueryException(format!"mongreldb: response body exceeds %d bytes"(
+                    maxResponseBytes), status, null, Nullable!long.init);
+        }
 
         if (status < 200 || status >= 300)
         {

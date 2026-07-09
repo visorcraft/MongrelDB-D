@@ -13,7 +13,7 @@ module main;
 
 import mongreldb;
 
-import std.conv : to;
+import std.conv : to, ConvException;
 import std.digest.md : md5Of;
 import std.digest : toHexString;
 import std.exception : enforce;
@@ -74,6 +74,93 @@ private bool waitForHealth(MongrelDBClient db, long maxMs)
         Thread.sleep(dur!"msecs"(500));
     }
     return false;
+}
+
+// cellValue looks up a column value in the flat `cells` array of a Kit row
+// (shape: [col_id, value, ...]), returning JSONValue(null) if absent.
+private JSONValue cellValue(JSONValue row, long colId)
+{
+    if (row.type != JSONType.object || ("cells" !in row.object) ||
+            row.object["cells"].type != JSONType.array)
+    {
+        return JSONValue([JSONValue()]); // JSON null
+    }
+    auto cells = row.object["cells"].array;
+    for (size_t i = 0; i + 1 < cells.length; i += 2)
+    {
+        if (jsonToLong(cells[i]) == colId)
+        {
+            return cells[i + 1];
+        }
+    }
+    return JSONValue([JSONValue()]); // JSON null
+}
+
+// cellInt64 extracts an int64 value for colId from a Kit row.
+private long cellInt64(JSONValue row, long colId)
+{
+    return jsonToLong(cellValue(row, colId));
+}
+
+// cellFloat64 extracts a float64 value for colId from a Kit row.
+private double cellFloat64(JSONValue row, long colId)
+{
+    JSONValue v = cellValue(row, colId);
+    final switch (v.type)
+    {
+    case JSONType.float_:
+        return v.floating;
+    case JSONType.integer:
+        return cast(double) v.integer;
+    case JSONType.uinteger:
+        return cast(double) v.uinteger;
+    case JSONType.string:
+        try
+        {
+            return to!double(v.str);
+        }
+        catch (ConvException)
+        {
+            return 0.0;
+        }
+    case JSONType.null_, JSONType.true_, JSONType.false_,
+            JSONType.object, JSONType.array:
+        return 0.0;
+    }
+}
+
+// jsonToLong coerces a JSON number/integer/string to a long, returning 0 on
+// failure.
+private long jsonToLong(JSONValue v)
+{
+    final switch (v.type)
+    {
+    case JSONType.integer:
+        return v.integer;
+    case JSONType.uinteger:
+        return cast(long) v.uinteger;
+    case JSONType.float_:
+        return cast(long) v.floating;
+    case JSONType.string:
+        try
+        {
+            return to!long(v.str);
+        }
+        catch (ConvException)
+        {
+            return 0L;
+        }
+    case JSONType.null_:
+        return 0L;
+    case JSONType.true_:
+        return 1L;
+    case JSONType.false_:
+        return 0L;
+    case JSONType.object:
+        return 0L;
+    case JSONType.array:
+        return 0L;
+    }
 }
 
 int main()
@@ -188,11 +275,13 @@ private void runTests(MongrelDBClient db)
         db.upsert(name, [Cell.of(1, 1L), Cell.of(2, 120.0)], [Cell.of(2, 120.0)]);
         check(db.count(name) == 1, "upsert updates (count still 1)");
 
-        // The updated value is returned by a query.
+        // The updated value is returned by a query; verify the cell changed.
         import std.json : parseJSON;
         auto params = parseJSON(`{"value": 1}`);
         auto rows = db.query(name).where("pk", params).execute();
         check(rows.length == 1, "upsert: pk query returns 1 row");
+        check(cellInt64(rows[0], 1) == 1, "upsert: returned pk == 1");
+        check(cellFloat64(rows[0], 2) == 120.0, "upsert: updated amount == 120.0");
     }
 
     // query by pk
@@ -206,6 +295,7 @@ private void runTests(MongrelDBClient db)
         auto params = parseJSON(`{"value": 42}`);
         auto rows = db.query(name).where("pk", params).execute();
         check(rows.length == 1, "pk query returns 1 row");
+        check(cellInt64(rows[0], 1) == 42, "pk query returns the queried pk");
     }
 
     // query range + truncated
@@ -223,8 +313,11 @@ private void runTests(MongrelDBClient db)
         auto params = parseJSON(`{"column": 2, "min": 100, "max": 150}`);
         auto q = db.query(name).where("range", params).limit(100);
         auto rows = q.execute();
-        check(rows.length >= 1, "range query returns >= 1 row");
+        // Only the row with amount=120 (pk=2) falls in [100, 150].
+        check(rows.length == 1, "range query returns exactly 1 row");
         check(!q.truncated, "range query not truncated");
+        check(cellInt64(rows[0], 1) == 2, "range query: returned pk == 2");
+        check(cellInt64(rows[0], 2) == 120, "range query: returned amount == 120");
     }
 
     // transaction put + commit
@@ -252,10 +345,18 @@ private void runTests(MongrelDBClient db)
         check(db.count(name) == 0, "deleteByPk: count == 0 after delete");
     }
 
-    // sql (SELECT 1 streams Arrow IPC rather than JSON; just assert it runs)
+    // sql: INSERT via SQL increases the count; JSON SELECT returns the row.
     {
-        auto rows = db.sql("SELECT 1");
-        check(true, "sql SELECT 1 runs");
+        auto name = uniqueTable("d_sql");
+        db.createTable(name, [
+            Column(1, "id", "int64", true, false),
+            Column(2, "amount", "int64", false, false),
+        ]);
+        check(db.count(name) == 0, "sql: count == 0 before insert");
+        auto insertRows = db.sql(format!"INSERT INTO %s (id, amount) VALUES (10, 42)"(name));
+        check(db.count(name) == 1, "sql: count increased to 1 after INSERT");
+        auto selectRows = db.sql(format!"SELECT id, amount FROM %s"(name));
+        check(selectRows.length == 1, "sql: JSON SELECT returns 1 row");
     }
 
     // schema + schemaFor
