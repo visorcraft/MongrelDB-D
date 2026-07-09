@@ -17,13 +17,16 @@
 import mongreldb;
 import mongreldb.client : Cell, Column;
 
+import std.conv : to;
+import std.datetime : Clock;
 import std.json : JSONValue;
 import std.stdio : writeln, stderr;
 
-void main()
+int main()
 {
     enum url = "http://127.0.0.1:8453";
-    enum table = "example_crud";
+    // Unique table name per run so concurrent/repeated runs never collide.
+    auto table = "example_crud_" ~ Clock.currStdTime().to!string;
 
     auto db = new MongrelDBClient(url);
 
@@ -31,9 +34,17 @@ void main()
     if (!db.health())
     {
         stderr.writeln("daemon not reachable at ", url);
-        return;
+        return 1;
     }
     writeln("Connected to MongrelDB");
+
+    // Always drop the table on exit, even if an earlier step threw. This is
+    // registered before createTable so a failed create still cleans up safely.
+    scope (exit)
+    {
+        db.dropTable(table);
+        writeln("Dropped table ", table);
+    }
 
     // Create the table. Schema: id (int64 PK), name (varchar), score (float64).
     long tid = db.createTable(table, [
@@ -69,7 +80,5 @@ void main()
     db.deleteByPk(table, JSONValue(3L));
     writeln("Deleted Carol; remaining rows: ", db.count(table));
 
-    // Cleanup.
-    db.dropTable(table);
-    writeln("Dropped table ", table);
+    return 0;
 }

@@ -13,21 +13,31 @@
 import mongreldb;
 import mongreldb.client : Cell, Column;
 
+import std.conv : to;
+import std.datetime : Clock;
 import std.json : parseJSON;
 import std.stdio : writeln, stderr;
 
-void main()
+int main()
 {
     enum url = "http://127.0.0.1:8453";
-    enum table = "example_query";
+    // Unique table name per run so concurrent/repeated runs never collide.
+    auto table = "example_query_" ~ Clock.currStdTime().to!string;
 
     auto db = new MongrelDBClient(url);
     if (!db.health())
     {
         stderr.writeln("daemon not reachable at ", url);
-        return;
+        return 1;
     }
     writeln("Connected to MongrelDB");
+
+    // Always drop the table on exit, even if an earlier step threw.
+    scope (exit)
+    {
+        db.dropTable(table);
+        writeln("Dropped table ", table);
+    }
 
     db.createTable(table, [
         Column(1, "id", "int64", true, false),
@@ -68,6 +78,5 @@ void main()
         writeln("  ", row);
     }
 
-    db.dropTable(table);
-    writeln("Dropped table ", table);
+    return 0;
 }

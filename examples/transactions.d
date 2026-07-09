@@ -14,20 +14,33 @@
 import mongreldb;
 import mongreldb.client : Cell, Column;
 
+import std.conv : to;
+import std.datetime : Clock;
 import std.stdio : writeln, stderr;
 
-void main()
+int main()
 {
     enum url = "http://127.0.0.1:8453";
-    enum table = "example_txn";
+    // Unique table name + idempotency key per run so concurrent/repeated runs
+    // never collide and retry logic isn't confused with a prior run's batch.
+    auto tag = Clock.currStdTime().to!string;
+    auto table = "example_txn_" ~ tag;
+    auto idempotencyKey = "example-txn-" ~ tag;
 
     auto db = new MongrelDBClient(url);
     if (!db.health())
     {
         stderr.writeln("daemon not reachable at ", url);
-        return;
+        return 1;
     }
     writeln("Connected to MongrelDB");
+
+    // Always drop the table on exit, even if an earlier step threw.
+    scope (exit)
+    {
+        db.dropTable(table);
+        writeln("Dropped table ", table);
+    }
 
     db.createTable(table, [
         Column(1, "id", "int64", true, false),
@@ -54,14 +67,13 @@ void main()
     // original result and applies no extra rows.
     auto retry = db.begin();
     retry.put(table, [Cell.of(1, 4L), Cell.of(2, "Dave"), Cell.of(3, 60.0)], false);
-    retry.commit("example-txn-key");
+    retry.commit(idempotencyKey);
     writeln("After first idempotent commit: ", db.count(table), " rows");
 
     auto retry2 = db.begin();
     retry2.put(table, [Cell.of(1, 4L), Cell.of(2, "Dave"), Cell.of(3, 60.0)], false);
-    retry2.commit("example-txn-key");
+    retry2.commit(idempotencyKey);
     writeln("After duplicate idempotent commit (same key): ", db.count(table), " rows (no double-apply)");
 
-    db.dropTable(table);
-    writeln("Dropped table ", table);
+    return 0;
 }

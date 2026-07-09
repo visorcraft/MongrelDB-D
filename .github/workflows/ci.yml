@@ -90,9 +90,8 @@ jobs:
         run: |
           for ex in examples/*.d; do
             echo "=== Running $ex ==="
-            dub run --single "$ex" 2>/dev/null || { echo "Note: D examples may need dub integration"; }
+            dub run --single "$ex" || { echo "FAILED: $ex"; exit 1; }
           done
-        continue-on-error: true
 
       - name: Dump server log on failure
         if: failure()
