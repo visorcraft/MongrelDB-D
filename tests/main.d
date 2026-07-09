@@ -174,6 +174,27 @@ private void runTests(MongrelDBClient db)
         check(db.count(name) == 2, "count == 2 after two puts");
     }
 
+    // upsert inserts then updates on PK conflict
+    {
+        auto name = uniqueTable("d_upsert");
+        db.createTable(name, [
+            Column(1, "id", "int64", true, false),
+            Column(2, "amount", "float64", false, false),
+        ]);
+        // First upsert inserts.
+        db.upsert(name, [Cell.of(1, 1L), Cell.of(2, 99.5)], [Cell.of(2, 99.5)]);
+        check(db.count(name) == 1, "upsert inserts (count == 1)");
+        // Second upsert on the same PK updates (still one row).
+        db.upsert(name, [Cell.of(1, 1L), Cell.of(2, 120.0)], [Cell.of(2, 120.0)]);
+        check(db.count(name) == 1, "upsert updates (count still 1)");
+
+        // The updated value is returned by a query.
+        import std.json : parseJSON;
+        auto params = parseJSON(`{"value": 1}`);
+        auto rows = db.query(name).where("pk", params).execute();
+        check(rows.length == 1, "upsert: pk query returns 1 row");
+    }
+
     // query by pk
     {
         auto name = uniqueTable("d_pk");

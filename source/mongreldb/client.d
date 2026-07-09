@@ -358,6 +358,33 @@ class MongrelDBClient
     }
 
     ///
+    /// Upsert (insert or update on PK conflict) a row. `cells` are the insert
+    /// values; `updateCells`, when non-empty, are the values to apply on a
+    /// primary-key conflict (an empty array means DO NOTHING).
+    /// `idempotencyKey`, when non-empty, makes the commit safe to retry.
+    ///
+    /// Returns the per-operation result object (the first element of the
+    /// server's results array), or an empty object if none.
+    JSONValue upsert(string table, Cell[] cells, Cell[] updateCells = null,
+            string idempotencyKey = null)
+    {
+        auto op = JSONValue([JSONValue()]);
+        op.object = null;
+        auto upsertOp = JSONValue([JSONValue()]);
+        upsertOp.object = null;
+        upsertOp["table"] = JSONValue(table);
+        upsertOp["cells"] = JSONValue(flattenCells(cells));
+        if (updateCells !is null && updateCells.length > 0)
+        {
+            upsertOp["update_cells"] = JSONValue(flattenCells(updateCells));
+        }
+        op["upsert"] = upsertOp;
+
+        auto results = commitOne([op], idempotencyKey);
+        return firstResult(results);
+    }
+
+    ///
     /// Remove a row by its primary-key value.
     void deleteByPk(string table, JSONValue pk)
     {
