@@ -90,7 +90,11 @@ jobs:
         run: |
           for ex in examples/*.d; do
             echo "=== Running $ex ==="
-            dub run --single "$ex" || { echo "FAILED: $ex"; exit 1; }
+            # Compile with the source path and link against the library,
+            # then run the binary.
+            base=$(basename "$ex" .d)
+            ldc2 -Isource -of"/tmp/$base" "$ex" source/mongreldb/*.d || { echo "FAILED (compile): $ex"; exit 1; }
+            "/tmp/$base" || { echo "FAILED (run): $ex"; exit 1; }
           done
 
       - name: Dump server log on failure
