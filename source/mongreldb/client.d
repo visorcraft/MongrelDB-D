@@ -53,13 +53,13 @@ struct Cell
     /// Cell value (bool, long, double, string, or JSONValue for the rest).
     JSONValue value;
 
-    /// Build a cell from a boolean value.
-    static Cell of(long id, bool v)
-    {
-        return Cell(id, JSONValue(v));
-    }
-
     /// Build a cell from an integral value.
+    ///
+    /// Note: there is intentionally no `of(long, bool)` overload. D's overload
+    /// resolution ranks `bool` ahead of `long` for the values 0 and 1, so a
+    /// competing bool overload silently turned `Cell.of(1, 1L)` into a JSON
+    /// boolean (`true`) rather than the integer `1`. To store a boolean cell,
+    /// use `Cell.of(id, JSONValue(true))`.
     static Cell of(long id, long v)
     {
         return Cell(id, JSONValue(v));
