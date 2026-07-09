@@ -37,10 +37,23 @@ class Transaction
     }
 
     ///
+    /// Reject staging of operations after `commit()` or `rollback()`. A
+    /// transaction is single-use; staged mutations from a finalized transaction
+    /// would never reach the server.
+    private void ensureOpen()
+    {
+        if (_committed)
+        {
+            throw new Exception(alreadyCommittedMsg);
+        }
+    }
+
+    ///
     /// Stage an insert. `returning`, when `true`, asks the daemon to echo the
     /// row in the per-operation result. Returns `this` for chaining.
     Transaction put(string table, Cell[] cells, bool returning = false)
     {
+        ensureOpen();
         auto op = JSONValue([JSONValue()]);
         op.object = null;
         auto putOp = JSONValue([JSONValue()]);
@@ -57,6 +70,7 @@ class Transaction
     /// Stage a delete by the internal row id. Returns `this` for chaining.
     Transaction delete(string table, long rowId)
     {
+        ensureOpen();
         auto op = JSONValue([JSONValue()]);
         op.object = null;
         auto del = JSONValue([JSONValue()]);
@@ -72,6 +86,7 @@ class Transaction
     /// Stage a delete by primary-key value. Returns `this` for chaining.
     Transaction deleteByPk(string table, JSONValue pk)
     {
+        ensureOpen();
         auto op = JSONValue([JSONValue()]);
         op.object = null;
         auto del = JSONValue([JSONValue()]);
