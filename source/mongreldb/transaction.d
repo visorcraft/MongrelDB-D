@@ -104,12 +104,17 @@ class Transaction
         {
             throw new Exception(alreadyCommittedMsg);
         }
-        _committed = true;
         if (_ops.length == 0)
         {
+            _committed = true;
             return [];
         }
-        return _client.commitTxn(_ops, idempotencyKey);
+        // Send first, mark committed only after the server confirms. This
+        // keeps the transaction retryable (with an idempotency key) if the
+        // network call fails or times out.
+        auto results = _client.commitTxn(_ops, idempotencyKey);
+        _committed = true;
+        return results;
     }
 
     ///

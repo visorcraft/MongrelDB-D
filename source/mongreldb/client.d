@@ -845,9 +845,9 @@ private HTTP.Method toMethod(string method) pure
 }
 
 ///
-/// Percent-encode a path segment (used for table names that may contain
-/// characters unsafe in a URL). It does not escape the forward slash so
-/// compound identifiers survive.
+/// Percent-encode a path segment so table names containing '/', '?', '#',
+/// or spaces cannot inject extra segments or break routing. Only RFC 3986
+/// unreserved characters pass through unescaped.
 string urlPathEscape(string seg) pure nothrow
 {
     static immutable hex = "0123456789ABCDEF";
@@ -884,12 +884,13 @@ string urlPathEscape(string seg) pure nothrow
     return buf.data;
 }
 
-// isUnreservedOrSlash matches unreserved URI characters and the path separator.
+// isUnreserved matches only RFC 3986 unreserved characters. The forward
+// slash is NOT included so a table name cannot inject an extra path segment.
 private bool isUnreservedOrSlash(ubyte b) pure nothrow @nogc
 {
     return (b >= 'A' && b <= 'Z') || (b >= 'a' && b <= 'z') ||
             (b >= '0' && b <= '9') || b == '-' || b == '_' ||
-            b == '.' || b == '~' || b == '/';
+            b == '.' || b == '~';
 }
 
 // JSONValue constructors that take a plain string are not implicit; wrap them.
@@ -899,6 +900,7 @@ unittest
 {
     // Smoke test: urlPathEscape leaves safe strings alone.
     assert(urlPathEscape("orders") == "orders");
-    assert(urlPathEscape("a/b") == "a/b");
+    // '/' is now encoded so it cannot inject an extra path segment.
+    assert(urlPathEscape("a/b") == "a%2Fb");
     assert(urlPathEscape("a b") == "a%20b");
 }
