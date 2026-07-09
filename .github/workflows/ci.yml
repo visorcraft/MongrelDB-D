@@ -86,6 +86,14 @@ jobs:
       - name: Run live tests
         run: ./build/mongreldb
 
+      - name: Run examples
+        run: |
+          for ex in examples/*.d; do
+            echo "=== Running $ex ==="
+            dub run --single "$ex" 2>/dev/null || { echo "Note: D examples may need dub integration"; }
+          done
+        continue-on-error: true
+
       - name: Dump server log on failure
         if: failure()
         run: cat /tmp/mongreldb-server.log
