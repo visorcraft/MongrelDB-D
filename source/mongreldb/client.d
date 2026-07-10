@@ -25,7 +25,7 @@ module mongreldb.client;
 public import mongreldb.transaction;
 public import mongreldb.query;
 
-import std.algorithm : map;
+import std.algorithm : canFind, map;
 import std.array : appender, array;
 import std.base64 : Base64;
 import std.conv : to, ConvException;
@@ -105,6 +105,14 @@ struct Column
     bool primaryKey = false;
     /// Whether NULLs are permitted.
     bool nullable = false;
+    /// Allowed string values for an enum-style column. Empty = no constraint
+    /// is sent to the server (a column with `enum_variants` is treated as
+    /// "any string" by the wire).
+    string[] enum_variants;
+    /// Default value applied when an insert omits the column. Empty string
+    /// is treated as "not provided" - explicitly serialize a literal empty
+    /// default via a non-empty sentinel (e.g. "\0") if ever needed.
+    string default_value;
 
     ///
     /// Serialize to the JSON object expected by the daemon.
@@ -117,6 +125,16 @@ struct Column
         obj["ty"] = JSONValue(ty);
         obj["primary_key"] = JSONValue(primaryKey);
         obj["nullable"] = JSONValue(nullable);
+        // Only include the optional keys when populated; the daemon treats
+        // their absence as "no constraint" / "no default".
+        if (enum_variants.length > 0)
+        {
+            obj["enum_variants"] = JSONValue(enum_variants.map!(s => JSONValue(s)).array);
+        }
+        if (default_value.length > 0)
+        {
+            obj["default_value"] = JSONValue(default_value);
+        }
         return obj;
     }
 }
@@ -984,4 +1002,38 @@ unittest
     // '/' is now encoded so it cannot inject an extra path segment.
     assert(urlPathEscape("a/b") == "a%2Fb");
     assert(urlPathEscape("a b") == "a%20b");
+}
+
+// Wire-shape conformance: Column.toJson() must emit exactly the keys the
+// server's create_table extractor reads, and must omit enum_variants /
+// default_value when not set so existing column definitions stay
+// byte-identical.
+unittest
+{
+    // Case 1: optional fields populated -> both keys present, exact spelling.
+    {
+        auto c = Column(1, "color", "varchar", false, false,
+                cast(string[])["a", "b"], "a");
+        JSONValue payload = c.toJson();
+        string wire = toJSON(payload);
+        assert(wire.canFind(`"enum_variants":["a","b"]`),
+                "expected enum_variants array in wire JSON, got: " ~ wire);
+        assert(wire.canFind(`"default_value":"a"`),
+                "expected default_value string in wire JSON, got: " ~ wire);
+    }
+
+    // Case 2: optional fields empty -> both keys absent (additive safety).
+    {
+        auto c = Column(1, "name", "varchar", false, false);
+        JSONValue payload = c.toJson();
+        string wire = toJSON(payload);
+        assert(!wire.canFind("enum_variants"),
+                "enum_variants should be omitted when empty, got: " ~ wire);
+        assert(!wire.canFind("default_value"),
+                "default_value should be omitted when empty, got: " ~ wire);
+        // Sanity: the always-on keys are still emitted.
+        assert(wire.canFind(`"id":1`), wire);
+        assert(wire.canFind(`"name":"name"`), wire);
+        assert(wire.canFind(`"ty":"varchar"`), wire);
+    }
 }
