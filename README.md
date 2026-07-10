@@ -176,9 +176,9 @@ db.sql("WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM r WHERE n<10)
 db.sql("SELECT id, ROW_NUMBER() OVER (PARTITION BY customer ORDER BY amount DESC) FROM orders");
 ```
 
-> Note: the `/sql` endpoint streams Arrow IPC bytes for `SELECT`s. The client
-> decodes JSON bodies when present and returns an empty array otherwise (e.g.
-> for DDL/DML or binary result sets).
+> Note: the client requests the JSON result format for `/sql`, so a `SELECT`
+> returns its rows decoded into a `JSONValue[]`. Statements that produce no
+> rows (DDL/DML, or an empty result set) return an empty array.
 
 ## User & role management
 

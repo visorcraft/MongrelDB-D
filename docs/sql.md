@@ -1,10 +1,10 @@
 # SQL
 
 MongrelDB ships a `/sql` endpoint backed by DataFusion. `MongrelDBClient.sql`
-runs a single statement (or script) and returns the decoded rows when the
-server returns JSON. Use SQL for everything the typed API does not cover:
-joins, aggregates, recursive CTEs, window functions, and DDL like
-`CREATE TABLE AS SELECT`.
+runs a single statement (or script). The client requests the JSON result
+format and returns the decoded rows for statements that produce a result set.
+Use SQL for everything the typed API does not cover: joins, aggregates,
+recursive CTEs, window functions, and DDL like `CREATE TABLE AS SELECT`.
 
 ```d
 import mongreldb;
@@ -16,7 +16,8 @@ import std.stdio;
 
 ## Run a statement
 
-`sql(sqlText)` POSTs `{"sql": "..."}` to `/sql` and returns a `JSONValue[]`:
+`sql(sqlText)` POSTs `{"sql": "...", "format": "json"}` to `/sql` and returns a
+`JSONValue[]`:
 
 ```d
 JSONValue[] rows = db.sql("SELECT * FROM orders");
@@ -26,19 +27,17 @@ foreach (row; rows)
 }
 ```
 
-For statements that produce no row set - DDL, DML, or a result streamed as
-Arrow IPC bytes - `sql` returns an empty array and does not throw. Success is
-the absence of an exception:
+For statements that produce no row set - DDL or DML - `sql` returns an empty
+array and does not throw. Success is the absence of an exception:
 
 ```d
 db.sql("INSERT INTO orders (id, customer, amount) VALUES (99, 'Zoe', 999.0)");
 db.sql("CREATE TABLE archive AS SELECT * FROM orders WHERE amount > 500");
 ```
 
-> Note: the `/sql` endpoint streams Arrow IPC bytes for `SELECT`s in most
-> builds. The client decodes JSON bodies when present and returns an empty
-> array otherwise. For typed row retrieval, prefer the native query builder
-> (see [queries.md](queries.md)).
+> Note: the client requests the JSON result format for `/sql`, so a `SELECT`
+> returns its rows decoded into a `JSONValue[]`. Statements that produce no
+> rows return an empty array.
 
 ## Joins and aggregates
 
@@ -122,17 +121,13 @@ native indexes.
 
 ## Common pitfalls
 
-**Treating an empty array as failure.** A statement that legitimately yields
-no rows (or a non-row-returning statement) returns `[]`. Errors surface as
-`QueryException`; check for that, not for emptiness.
+**Treating an empty array as failure.** DDL and DML statements return `[]`
+because they produce no result set; a `SELECT` returns its rows decoded into a
+`JSONValue[]`. Errors surface as `QueryException`; check for that, not for
+emptiness.
 
 **String-interpolating values into SQL.** Build statements with parameters or
 carefully escape literals. Interpolation invites injection and quoting bugs.
-
-**Expecting Arrow IPC rows from `sql`.** Most builds stream `SELECT` results
-as Arrow IPC bytes, which the client does not decode into the JSON array. If
-you need reliable typed rows from a SQL statement, confirm your daemon build
-emits JSON for `/sql`, or use the native query builder instead.
 
 **Holding a long-running statement open.** SQL statements are synchronous on
 the client. For large analytical queries, raise the client timeout
