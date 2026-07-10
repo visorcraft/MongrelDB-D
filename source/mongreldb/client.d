@@ -248,6 +248,25 @@ class MongrelDBClient
             base = base[0 .. $ - 1];
         }
         _baseURL = base;
+        // Reject CR/LF in any credential: the token/username/password are placed
+        // verbatim into the Authorization header, so an embedded newline would
+        // allow header injection (request splitting). Reject up front rather
+        // than rely on later encoding.
+        if (token !is null && containsNewline(token))
+        {
+            throw new MongrelDBException(
+                    "auth token must not contain CR or LF");
+        }
+        if (username !is null && containsNewline(username))
+        {
+            throw new MongrelDBException(
+                    "auth username must not contain CR or LF");
+        }
+        if (password !is null && containsNewline(password))
+        {
+            throw new MongrelDBException(
+                    "auth password must not contain CR or LF");
+        }
         _token = (token is null) ? "" : token;
         _username = (username is null) ? "" : username;
         _password = (password is null) ? "" : password;
@@ -869,6 +888,21 @@ private string stripLeadingSlash(string s) pure nothrow
             break;
     }
     return s[i .. $];
+}
+
+// containsNewline reports whether s contains a CR or LF byte. Used to guard
+// values that are interpolated into the Authorization header against header
+// injection / request splitting.
+private bool containsNewline(string s) pure nothrow @nogc
+{
+    foreach (char c; s)
+    {
+        if (c == '\r' || c == '\n')
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // toMethod maps an uppercase method name to std.net.curl's HTTP.Method enum.
