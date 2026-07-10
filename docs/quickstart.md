@@ -105,18 +105,31 @@ void main()
     }
 
     // 3. Create a table. Each Column has a stable numeric id, a name, a type,
-    //    and flags. The first column is the primary key.
+    //    and flags. The first column is the primary key. Two optional
+    //    trailing fields are constraint hints:
+    //      - enum_variants : a closed set of allowed string values for a
+    //                        column declared with ty="enum".
+    //      - default_value : a server-side fill ("now" or "uuid") applied
+    //                        when an insert omits the column.
     long tid = db.createTable("orders", [
         Column(1, "id",       "int64",   true,  false),
         Column(2, "customer", "varchar", false, false),
         Column(3, "amount",   "float64", false, false),
+        Column(4, "status",   "enum",    false, false,
+                cast(string[])["pending", "shipped", "cancelled"], ""),
+        Column(5, "note",     "varchar", false, false,
+                cast(string[])[], ""),
     ]);
     writeln("created table id: ", tid);
 
     // 4. Insert rows. Cell.of pairs a column id with a value. put() is a
     //    one-op transaction; the optional third argument is an idempotency key.
-    db.put("orders", [Cell.of(1, 1L), Cell.of(2, "Alice"), Cell.of(3, 99.50)]);
-    db.put("orders", [Cell.of(1, 2L), Cell.of(2, "Bob"),   Cell.of(3, 150.00)]);
+    //    The `status` cell is required (enum, no default); the `note` cell
+    //    is optional and the server leaves it unset when omitted.
+    db.put("orders", [Cell.of(1, 1L), Cell.of(2, "Alice"), Cell.of(3, 99.50),
+                      Cell.of(4, "shipped"), Cell.of(5, "priority")]);
+    db.put("orders", [Cell.of(1, 2L), Cell.of(2, "Bob"),   Cell.of(3, 150.00),
+                      Cell.of(4, "pending")]);
 
     // 5. Query with a native index condition. The range index serves this in
     //    sub-millisecond. projection() selects only column ids 1 and 2.
@@ -155,7 +168,7 @@ total rows: 2
 |------|--------------|
 | `new MongrelDBClient(url)` | Builds an HTTP client targeting one daemon. Safe to share across fibers/threads. |
 | `db.health()` | GET `/health`; returns `true` when the daemon answers. Always check before real work. |
-| `db.createTable(name, cols)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; use them everywhere else. |
+| `db.createTable(name, cols)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; use them everywhere else. Trailing `enum_variants` and `default_value` fields encode closed-string and server-side default hints. |
 | `db.put(table, cells)` | Single-op transaction: POST `/kit/txn` with one `put` op. `cells` is flattened to `[col_id, val, ...]`. |
 | `db.query(table).where(...)` | Builds a `/kit/query` body. `where` pushes a condition down to a native index. |
 | `.projection([1L, 2L])` | Server returns only those column ids, saving bandwidth. |
@@ -163,7 +176,56 @@ total rows: 2
 | `.execute()` | Sends the query and decodes the `rows` array. |
 | `db.count(table)` | GET `/tables/{name}/count`. |
 
-## 6. Common pitfalls
+## 6. Column constraints
+
+`Column` carries two optional server-side hints alongside its name, type, and
+flags. Both default to "absent" - existing callers that never set them keep
+producing byte-identical wire payloads.
+
+### `enum_variants` - closed-string columns
+
+When `ty` is `"enum"` and `enum_variants` is a non-empty list, the engine
+treats the column as a closed set of allowed string values. Anything outside
+the list is rejected at insert / commit time:
+
+```d
+Column(4, "status", "enum", false, false,
+        cast(string[])["pending", "shipped", "cancelled"], "")
+```
+
+The server returns HTTP 400 `"enum column requires non-empty enum_variants"`
+if you declare `ty = "enum"` with an empty list. An empty `enum_variants` on
+a non-`enum` column is silently dropped from the wire and treated as
+"any string".
+
+### `default_value` - server-side fills
+
+The trailing `default_value` is a server-side discriminator applied at insert
+stage time when an insert omits the column or supplies it as `Null`:
+
+| Value     | Effect |
+|-----------|--------|
+| `"now"`   | Fill with the current ISO-8601 UTC timestamp at insert time. |
+| `"uuid"`  | Fill with a fresh RFC 4122 UUID at insert time. |
+| `""`      | Absent from the wire - no default is configured. |
+| anything else | HTTP 400 `unknown default_expr "<value>"` from the daemon. |
+
+```d
+// The engine fills a UUID whenever an insert omits `note`.
+Column(5, "note", "varchar", false, false,
+        cast(string[])[], "uuid")
+```
+
+This is not a literal-value default; it is a pointer to a server-side
+generator. If you need a literal default, send the value in every insert.
+
+### Putting it together
+
+A constraint-bearing table with both fields, including a row that exercises
+the defaults, lives in
+[`../examples/column_constraints.d`](../examples/column_constraints.d).
+
+## 7. Common pitfalls
 
 **Using the column name instead of the column id.** Every on-wire API uses the
 numeric `id` from `createTable`, never the `name`. The query builder's
@@ -205,3 +267,4 @@ pass `token` or `username`/`password` to the constructor. See [auth.md](auth.md)
 - [sql.md](sql.md) - recursive CTEs, window functions, `CREATE TABLE AS SELECT`
 - [auth.md](auth.md) - bearer tokens, basic auth, user/role management
 - [errors.md](errors.md) - the full exception hierarchy and recovery patterns
+- [../examples/column_constraints.d](../examples/column_constraints.d) - runnable `Column` constraints demo

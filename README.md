@@ -33,7 +33,7 @@
 - **Fluent query builder** that pushes conditions down to the engine's specialized indexes for sub-millisecond lookups: bitmap equality/IN, learned-range, null checks, FM-index full-text search, HNSW vector similarity (`ann`), and sparse vector match. Friendly aliases (`column` → `column_id`, `min`/`max` → `lo`/`hi`) are translated to the server's on-wire keys.
 - **Idempotent batch transactions** - operations staged locally and committed atomically, with the engine enforcing unique, foreign-key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
 - **Full SQL access** through the DataFusion-backed `/sql` endpoint: recursive CTEs, window functions, `CREATE TABLE AS SELECT`, materialized views, and multi-statement execution.
-- **Schema management**: typed table creation, full schema catalog, and per-table descriptors.
+- **Schema management**: typed table creation, full schema catalog, per-table descriptors, and constraint-bearing columns - `enum_variants` for closed-string columns and `default_value` for server-side fills (`"now"` or `"uuid"`).
 - **Typed exceptions**: `AuthException` (401/403), `NotFoundException` (404), `ConflictException` (409, with error code + op index), and `QueryException` (everything else), all subclasses of `MongrelDBException` carrying the HTTP status and decoded server envelope.
 - **Pluggable auth**: Bearer token (`--auth-token` mode) and HTTP Basic (`--auth-users` mode); the token takes precedence.
 - **User/role/credentials management** via SQL: Argon2id-hashed catalog users, roles, and `GRANT`/`REVOKE` table-level permissions, all executed through `sql`.
@@ -49,6 +49,9 @@ Runnable, end-to-end programs and deep dives for every feature live in
 - [SQL](docs/sql.md) - recursive CTEs, window functions, `CREATE TABLE AS SELECT`.
 - [Authentication](docs/auth.md) - bearer token, basic auth, and user/role management via SQL.
 - [Error handling](docs/errors.md) - the exception hierarchy and recovery patterns.
+
+A runnable demo of `Column` constraints lives in
+[`examples/column_constraints.d`](examples/column_constraints.d).
 
 ## Quick Example
 
@@ -164,6 +167,41 @@ if (q.truncated)
     // result set hit the limit; more matches exist on the server
 }
 ```
+
+## Column constraints
+
+A `Column` can carry two optional server-side hints alongside its type and
+flags: `enum_variants` (a closed set of allowed string values) and
+`default_value` (a server-applied fill when an insert omits the column).
+
+The `Column` constructor accepts them as two trailing positional arguments.
+Leaving either empty means "no constraint" / "no default" and the key is
+omitted from the wire payload, so existing callers see no change.
+
+```d
+// ty="enum" + non-empty enum_variants creates a closed-set column.
+db.createTable("orders", [
+    Column(1, "id",      "int64",   true,  false),
+    Column(2, "status",  "enum",    false, false,
+            cast(string[])["pending", "shipped", "cancelled"], ""),
+    // default_value is a server-side discriminator. Supported values:
+    //   "now"  -> current ISO-8601 UTC timestamp at insert stage time
+    //   "uuid" -> a fresh RFC 4122 UUID at insert stage time
+    Column(3, "created", "varchar", false, false,
+            cast(string[])[], "uuid"),
+]);
+
+// Insert with the enum supplied; omit `created` and the engine fills a UUID.
+db.put("orders", [Cell.of(1, 1L), Cell.of(2, "pending")]);
+```
+
+The engine rejects an `enum` column with an empty `enum_variants` list (400)
+and any `default_value` it does not recognize (400). Both fields are
+additive - existing tables created without them continue to round-trip
+byte-identically through the client.
+
+See [`examples/column_constraints.d`](examples/column_constraints.d) for a
+complete runnable program.
 
 ## SQL
 
