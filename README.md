@@ -35,7 +35,7 @@ History retention: `historyRetention` and `setHistoryRetentionEpochs`.
 - **Fluent query builder** that pushes conditions down to the engine's specialized indexes for sub-millisecond lookups: bitmap equality/IN, learned-range, null checks, FM-index full-text search, HNSW vector similarity (`ann`), and sparse vector match. Friendly aliases (`column` → `column_id`, `min`/`max` → `lo`/`hi`) are translated to the server's on-wire keys.
 - **Idempotent batch transactions** - operations staged locally and committed atomically, with the engine enforcing unique, foreign-key, and check constraints at commit time. Idempotency keys return the original response on duplicate commits, even after a crash.
 - **Full SQL access** through the DataFusion-backed `/sql` endpoint: recursive CTEs, window functions, `CREATE TABLE AS SELECT`, materialized views, and multi-statement execution.
-- **Schema management**: typed table creation, full schema catalog, per-table descriptors, and constraint-bearing columns - `enum_variants` for closed-string columns and `default_value` for server-side fills (`"now"` or `"uuid"`).
+- **Schema management**: typed table creation, full schema catalog, per-table descriptors, and constraint-bearing columns - `enum_variants` for closed-string columns, `default_value_json` for typed static defaults, and `default_expr` for dynamic server-side fills (`"now"` or `"uuid"`).
 - **Typed exceptions**: `AuthException` (401/403), `NotFoundException` (404), `ConflictException` (409, with error code + op index), and `QueryException` (everything else), all subclasses of `MongrelDBException` carrying the HTTP status and decoded server envelope.
 - **Pluggable auth**: Bearer token (`--auth-token` mode) and HTTP Basic (`--auth-users` mode); the token takes precedence.
 - **User/role/credentials management** via SQL: Argon2id-hashed catalog users, roles, and `GRANT`/`REVOKE` table-level permissions, all executed through `sql`.
@@ -183,15 +183,14 @@ The legacy fields remain trailing constructor arguments. Set
 
 ```d
 // ty="enum" + non-empty enum_variants creates a closed-set column.
+auto created = Column(3, "created", "varchar", false, false);
+created.default_expr = "uuid";  // dynamic UUID fill when omitted
+
 db.createTable("orders", [
     Column(1, "id",      "int64",   true,  false),
     Column(2, "status",  "enum",    false, false,
             cast(string[])["pending", "shipped", "cancelled"], ""),
-    // default_value is a server-side discriminator. Supported values:
-    //   "now"  -> current ISO-8601 UTC timestamp at insert stage time
-    //   "uuid" -> a fresh RFC 4122 UUID at insert stage time
-    Column(3, "created", "varchar", false, false,
-            cast(string[])[], "uuid"),
+    created,
 ]);
 
 // Insert with the enum supplied; omit `created` and the engine fills a UUID.

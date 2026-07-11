@@ -454,6 +454,9 @@ private void runTests(MongrelDBClient db)
 
         auto after = db.historyRetention();
         check(after.historyRetentionEpochs == 100, "retention: window unchanged");
+        check(db.historyRetentionEpochs() == 100, "retention: historyRetentionEpochs getter");
+        check(db.earliestRetainedEpoch() == after.earliestRetainedEpoch,
+                "retention: earliestRetainedEpoch getter");
         check(after.earliestRetainedEpoch <= epochBefore,
                 "retention: earliest retained epoch is at or before baseline");
 

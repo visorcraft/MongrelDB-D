@@ -33,6 +33,11 @@ jobs:
       - name: Build live-test executable
         run: dub build --compiler=ldc2 --config=live-test
 
+      - name: Build and run wire-shape tests
+        run: |
+          dub build --compiler=ldc2 --config=wire-shape
+          ./build/mongreldb
+
   live:
     # Boots a real mongreldb-server and runs the live round-trip suite.
     name: Live integration (against mongreldb-server)

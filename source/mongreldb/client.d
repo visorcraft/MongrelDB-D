@@ -162,11 +162,30 @@ struct HistoryRetention
     ulong earliestRetainedEpoch;
 }
 
+private ulong parseU64(JSONValue value)
+{
+    if (value.type == JSONType.uinteger)
+        return value.uinteger;
+    if (value.type == JSONType.integer)
+    {
+        if (value.integer < 0)
+            throw new QueryException("mongreldb: negative epoch in retention response");
+        return cast(ulong)value.integer;
+    }
+    throw new QueryException("mongreldb: malformed epoch in retention response");
+}
+
 private HistoryRetention decodeHistoryRetention(JSONValue value)
 {
+    if (value.type != JSONType.object ||
+        "history_retention_epochs" !in value.object ||
+        "earliest_retained_epoch" !in value.object)
+    {
+        throw new QueryException("mongreldb: malformed history retention response");
+    }
     return HistoryRetention(
-        cast(ulong)value["history_retention_epochs"].integer,
-        cast(ulong)value["earliest_retained_epoch"].integer);
+        parseU64(value["history_retention_epochs"]),
+        parseU64(value["earliest_retained_epoch"]));
 }
 
 /// Build the exact POST /kit/create_table JSON body.

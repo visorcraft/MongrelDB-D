@@ -198,26 +198,19 @@ if you declare `ty = "enum"` with an empty list. An empty `enum_variants` on
 a non-`enum` column is silently dropped from the wire and treated as
 "any string".
 
-### `default_value` - server-side fills
+### Legacy `default_value` - literal string defaults
 
-The trailing `default_value` is a server-side discriminator applied at insert
-stage time when an insert omits the column or supplies it as `Null`:
+The trailing `default_value` is treated as a literal string default applied at
+insert stage time when an insert omits the column or supplies it as `Null`:
 
 | Value     | Effect |
 |-----------|--------|
-| `"now"`   | Fill with the current ISO-8601 UTC timestamp at insert time. |
-| `"uuid"`  | Fill with a fresh RFC 4122 UUID at insert time. |
 | `""`      | Absent from the wire - no default is configured. |
-| anything else | HTTP 400 `unknown default_expr "<value>"` from the daemon. |
+| any string | Serialized as a JSON string literal. |
 
-```d
-// The engine fills a UUID whenever an insert omits `note`.
-Column(5, "note", "varchar", false, false,
-        cast(string[])[], "uuid")
-```
-
-This is not a literal-value default; it is a pointer to a server-side
-generator. If you need a literal default, send the value in every insert.
+For typed static defaults (numbers, booleans, explicit null) use
+`default_value_json`; for dynamic server-side generators (`"now"` or `"uuid"`)
+use `default_expr`, which takes precedence over both default-value fields.
 
 ### Putting it together
 
