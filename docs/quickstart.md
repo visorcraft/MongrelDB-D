@@ -168,7 +168,7 @@ total rows: 2
 |------|--------------|
 | `new MongrelDBClient(url)` | Builds an HTTP client targeting one daemon. Safe to share across fibers/threads. |
 | `db.health()` | GET `/health`; returns `true` when the daemon answers. Always check before real work. |
-| `db.createTable(name, cols)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; use them everywhere else. Trailing `enum_variants` and `default_value` fields encode closed-string and server-side default hints. |
+| `db.createTable(name, cols)` / `db.createTable(name, cols, constraints)` | POST `/kit/create_table`. Column `id`s are the on-wire identifiers; use them everywhere else. Trailing `enum_variants` and `default_value` fields encode closed-string and server-side default hints; the third argument forwards native table constraints. |
 | `db.put(table, cells)` | Single-op transaction: POST `/kit/txn` with one `put` op. `cells` is flattened to `[col_id, val, ...]`. |
 | `db.query(table).where(...)` | Builds a `/kit/query` body. `where` pushes a condition down to a native index. |
 | `.projection([1L, 2L])` | Server returns only those column ids, saving bandwidth. |

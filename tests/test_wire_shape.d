@@ -8,9 +8,9 @@
 
 module test_wire_shape;
 
-import mongreldb.client : Column;
+import mongreldb.client : Column, createTablePayload;
 import std.algorithm : canFind;
-import std.json : JSONValue, toJSON;
+import std.json : JSONValue, parseJSON, toJSON;
 import std.stdio : writeln;
 
 private void assertContains(string haystack, string needle, string label)
@@ -60,6 +60,17 @@ int main()
         assertContains(wire, `"default_value":"0.0"`, "default_value");
         assertNotContains(wire, "enum_variants", "default_value");
         writeln("PASS: default_value wire shape");
+    }
+
+    // Test 4: full payload with a table CHECK.
+    {
+        auto constraints = parseJSON(
+                `{"checks":[{"id":1,"name":"score_nonneg","expr":{"Ge":[{"Col":1},{"Lit":{"Int64":0}}]}}]}`);
+        string wire = toJSON(createTablePayload("scores",
+                [Column(1, "score", "int64")], constraints));
+        assertContains(wire, `"constraints":{"checks":[`, "constraints.checks");
+        assertContains(wire, `"name":"score_nonneg"`, "CHECK name");
+        writeln("PASS: CHECK constraints wire shape");
     }
 
     writeln("All wire-shape tests passed.");

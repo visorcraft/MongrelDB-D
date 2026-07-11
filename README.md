@@ -203,6 +203,14 @@ byte-identically through the client.
 See [`examples/column_constraints.d`](examples/column_constraints.d) for a
 complete runnable program.
 
+`createTable` also accepts the daemon's native `constraints` JSON value:
+
+```d
+auto checks = parseJSON(
+    `{"checks":[{"id":1,"name":"amount_nonneg","expr":{"Ge":[{"Col":3},{"Lit":{"Float64":0.0}}]}}]}`);
+db.createTable("orders", columns, checks);
+```
+
 ## SQL
 
 ```d
@@ -281,7 +289,7 @@ catch (QueryException e)
 | `setTimeout(ms)` | Set per-request timeout (ms); returns `this` |
 | `health()` | Check daemon health |
 | `tableNames()` | List table names |
-| `createTable(name, columns)` | Create a table; returns the table id |
+| `createTable(name, columns)` / `createTable(name, columns, constraints)` | Create a table; the third argument forwards the native constraints object |
 | `dropTable(name)` | Drop a table |
 | `count(table)` | Row count |
 | `put(table, cells, idempotencyKey = null)` | Insert a row |

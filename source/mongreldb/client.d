@@ -139,6 +139,23 @@ struct Column
     }
 }
 
+/// Build the exact POST /kit/create_table JSON body.
+JSONValue createTablePayload(string name, Column[] columns,
+        JSONValue constraints = JSONValue())
+{
+    import std.algorithm : map;
+    import std.array : array;
+    auto payload = JSONValue([JSONValue()]);
+    payload.object = null;
+    payload["name"] = JSONValue(name);
+    payload["columns"] = JSONValue(columns.map!(c => c.toJson()).array);
+    if (constraints.type == JSONType.object)
+    {
+        payload["constraints"] = constraints;
+    }
+    return payload;
+}
+
 // ── Errors ──────────────────────────────────────────────────────────────────
 
 ///
@@ -338,15 +355,10 @@ class MongrelDBClient
     ///
     /// Create a table named `name` with the given columns and return the
     /// assigned table id.
-    long createTable(string name, Column[] columns)
+    long createTable(string name, Column[] columns,
+            JSONValue constraints = JSONValue())
     {
-        import std.algorithm : map;
-        import std.array : array;
-        auto colArr = columns.map!(c => c.toJson()).array;
-        auto payload = JSONValue([JSONValue()]);
-        payload.object = null;
-        payload["name"] = JSONValue(name);
-        payload["columns"] = JSONValue(colArr);
+        auto payload = createTablePayload(name, columns, constraints);
         JSONValue resp = doPost("/kit/create_table", payload);
         if (resp.type == JSONType.object)
         {
