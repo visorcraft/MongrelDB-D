@@ -153,9 +153,12 @@ struct Column
     }
 }
 
+/// Response shape for the `/history/retention` endpoints.
 struct HistoryRetention
 {
+    /// Configured retention window: how many committed epochs are kept.
     ulong historyRetentionEpochs;
+    /// Oldest epoch that is still readable via `AS OF EPOCH`.
     ulong earliestRetainedEpoch;
 }
 
@@ -379,11 +382,26 @@ class MongrelDBClient
         return out_;
     }
 
+    /// Return the current history-retention settings.
     HistoryRetention historyRetention()
     {
         return decodeHistoryRetention(doGet("/history/retention"));
     }
 
+    /// Return the configured retention window (number of retained epochs).
+    ulong historyRetentionEpochs()
+    {
+        return historyRetention().historyRetentionEpochs;
+    }
+
+    /// Return the oldest epoch still available for `AS OF EPOCH` queries.
+    ulong earliestRetainedEpoch()
+    {
+        return historyRetention().earliestRetainedEpoch;
+    }
+
+    /// Set the history-retention window to `epochs` and return the new settings.
+    /// Requires an authenticated administrator principal.
     HistoryRetention setHistoryRetentionEpochs(ulong epochs)
     {
         auto body = JSONValue(["history_retention_epochs": JSONValue(epochs)]);
@@ -696,8 +714,31 @@ class MongrelDBClient
         {
             if (payload !is null && payload.length > 0)
             {
-                // setPostData attaches the body and sets Content-Type itself.
-                http.setPostData(payload, "application/json");
+                if (method == "PUT")
+                {
+                    // std.net.curl's setPostData only reliably uploads for POST.
+                    // For PUT, provide the payload through onSend and declare its
+                    // length so libcurl sends the body correctly.
+                    auto upload = cast(ubyte[]) payload;
+                    http.contentLength = upload.length;
+                    http.onSend = (void[] data)
+                    {
+                        size_t n = data.length;
+                        if (n > upload.length)
+                            n = upload.length;
+                        if (n == 0)
+                            return cast(size_t) 0;
+                        data[0 .. n] = cast(void[]) upload[0 .. n];
+                        upload = upload[n .. $];
+                        return n;
+                    };
+                    http.addRequestHeader("Content-Type", "application/json");
+                }
+                else
+                {
+                    // setPostData attaches the body and sets Content-Type itself.
+                    http.setPostData(payload, "application/json");
+                }
             }
             http.perform();
         }

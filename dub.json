@@ -40,6 +40,11 @@
             "name": "live-test",
             "targetType": "executable",
             "mainSourceFile": "tests/main.d"
+        },
+        {
+            "name": "wire-shape",
+            "targetType": "executable",
+            "mainSourceFile": "tests/test_wire_shape.d"
         }
     ]
 }

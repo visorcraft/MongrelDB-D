@@ -225,7 +225,61 @@ A constraint-bearing table with both fields, including a row that exercises
 the defaults, lives in
 [`../examples/column_constraints.d`](../examples/column_constraints.d).
 
-## 7. Common pitfalls
+### Typed static and dynamic defaults
+
+For literal defaults of any JSON scalar type, set `default_value_json` to the
+raw JSON text. For server-side generators (`"now"`, `"uuid"`), set
+`default_expr`, which takes precedence over both default-value fields.
+
+```d
+// A single table demonstrating every default shape.
+auto colMsg = Column(2, "msg",   "varchar");
+colMsg.default_value_json = `"hello"`;
+auto colCount = Column(3, "count", "int64");
+colCount.default_value_json = `0`;
+auto colOk = Column(4, "ok",    "bool");
+colOk.default_value_json = `true`;
+auto colMeta = Column(5, "meta",  "varchar");
+colMeta.default_value_json = `null`;
+auto colTag = Column(6, "tag",   "varchar");
+colTag.default_value_json = `"now"`;
+auto colTs = Column(7, "ts",    "timestamp_nanos");
+colTs.default_expr = "now";
+
+db.createTable("events", [
+    Column(1, "id", "int64", true, false),
+    colMsg, colCount, colOk, colMeta, colTag, colTs,
+]);
+```
+
+The legacy string `default_value` is still supported, but `default_value_json`
+makes numeric, boolean, and null defaults unambiguous.
+
+## 7. History retention
+
+The daemon retains a window of recent committed epochs so you can query older
+snapshots with SQL `AS OF EPOCH`. The default window is 1024 epochs.
+
+```d
+auto settings = db.historyRetention();
+writeln("retained epochs: ", settings.historyRetentionEpochs);
+writeln("earliest epoch:  ", settings.earliestRetainedEpoch);
+
+// Expand or shrink the window. When catalog auth is enabled, the caller must
+// hold the ADMIN role.
+db.setHistoryRetentionEpochs(100);
+```
+
+You cannot restore history that has already been pruned: raising the window
+only affects future epochs. Query a retained snapshot like this:
+
+```d
+// value_at_insert_epoch is the value as of the captured epoch.
+auto rows = db.sql(format!"SELECT value FROM events AS OF EPOCH %d WHERE id = 1"(
+        insertEpoch));
+```
+
+## 8. Common pitfalls
 
 **Using the column name instead of the column id.** Every on-wire API uses the
 numeric `id` from `createTable`, never the `name`. The query builder's

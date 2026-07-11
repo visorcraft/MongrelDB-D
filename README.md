@@ -201,6 +201,17 @@ db.put("orders", [Cell.of(1, 1L), Cell.of(2, "pending")]);
 The engine rejects an `enum` column with an empty `enum_variants` list (400)
 and an unknown `default_expr` (400). Existing callers remain compatible.
 
+For literal defaults of any JSON scalar type, use `default_value_json`:
+
+```d
+auto c = Column(4, "attempts", "int64");
+c.default_value_json = `3`;     // numeric default
+auto b = Column(5, "enabled",  "bool");
+b.default_value_json = `true`;  // boolean default
+auto n = Column(6, "label",    "varchar");
+n.default_value_json = `null`;  // explicit null default
+```
+
 See [`examples/column_constraints.d`](examples/column_constraints.d) for a
 complete runnable program.
 
@@ -251,6 +262,26 @@ db.sql("DROP USER alice");
 See [docs/auth.md](docs/auth.md) for the full auth mode reference and user/role
 recipes.
 
+## History retention
+
+`mongreldb-server` retains the last 1024 committed epochs by default. The
+window can be inspected and changed at runtime by an authenticated
+administrator:
+
+```d
+auto settings = db.historyRetention();
+writeln("retained epochs: ", settings.historyRetentionEpochs);
+writeln("earliest epoch:  ", settings.earliestRetainedEpoch);
+
+// Shrink or expand the window. Requires ADMIN permission when catalog
+// authentication (`--auth-users`) is enabled.
+db.setHistoryRetentionEpochs(100);
+```
+
+Increasing the retention window cannot restore epochs that were already
+pruned. Use SQL `AS OF EPOCH` to read historical snapshots that are still
+inside the window.
+
 ## Error handling
 
 Every non-2xx response is mapped to a typed exception. Catch
@@ -290,6 +321,10 @@ catch (QueryException e)
 | `setTimeout(ms)` | Set per-request timeout (ms); returns `this` |
 | `health()` | Check daemon health |
 | `tableNames()` | List table names |
+| `historyRetention()` | Current retention settings (`HistoryRetention`) |
+| `historyRetentionEpochs()` | Configured retention window (epoch count) |
+| `earliestRetainedEpoch()` | Oldest epoch still available for `AS OF EPOCH` |
+| `setHistoryRetentionEpochs(epochs)` | Set the retention window; requires admin |
 | `createTable(name, columns)` / `createTable(name, columns, constraints)` | Create a table; the third argument forwards the native constraints object |
 | `dropTable(name)` | Drop a table |
 | `count(table)` | Row count |

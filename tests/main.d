@@ -415,4 +415,65 @@ private void runTests(MongrelDBClient db)
         }
         check(threw, "schemaFor on missing table throws");
     }
+
+    // history retention: set window, read getters, write data, and read an
+    // older epoch via SQL AS OF EPOCH.
+    {
+        auto name = uniqueTable("d_retention");
+        auto settings = db.setHistoryRetentionEpochs(100);
+        check(settings.historyRetentionEpochs == 100, "retention: set returns 100");
+        check(db.historyRetentionEpochs() == 100, "retention: getter returns 100");
+
+        db.createTable(name, [
+            Column(1, "id", "int64", true, false),
+            Column(2, "value", "int64", false, false),
+        ]);
+
+        // Capture the epoch after table creation; inserts/updates will advance it.
+        auto pragmaRows = db.sql("PRAGMA data_version");
+        long epochBefore = -1;
+        if (pragmaRows.length > 0 && pragmaRows[0].type == JSONType.object &&
+                "data_version" in pragmaRows[0].object)
+        {
+            epochBefore = jsonToLong(pragmaRows[0].object["data_version"]);
+        }
+        check(epochBefore >= 0, "retention: captured baseline epoch");
+
+        db.put(name, [Cell.of(1, 1L), Cell.of(2, 10L)], null);
+
+        pragmaRows = db.sql("PRAGMA data_version");
+        long epochInsert = -1;
+        if (pragmaRows.length > 0 && pragmaRows[0].type == JSONType.object &&
+                "data_version" in pragmaRows[0].object)
+        {
+            epochInsert = jsonToLong(pragmaRows[0].object["data_version"]);
+        }
+        check(epochInsert > epochBefore, "retention: epoch advanced after insert");
+
+        db.upsert(name, [Cell.of(1, 1L), Cell.of(2, 20L)], [Cell.of(2, 20L)]);
+
+        auto after = db.historyRetention();
+        check(after.historyRetentionEpochs == 100, "retention: window unchanged");
+        check(after.earliestRetainedEpoch <= epochBefore,
+                "retention: earliest retained epoch is at or before baseline");
+
+        // Current value is 20.
+        auto currentRows = db.sql(format!"SELECT value FROM %s WHERE id = 1"(name));
+        check(currentRows.length == 1, "retention: current row count");
+        if (currentRows.length > 0)
+        {
+            check(jsonToLong(currentRows[0].object["value"]) == 20,
+                    "retention: current value is 20");
+        }
+
+        // Historical value at the insert epoch is still 10.
+        auto histRows = db.sql(format!"SELECT value FROM %s AS OF EPOCH %d WHERE id = 1"(
+                name, epochInsert));
+        check(histRows.length == 1, "retention: historical row count");
+        if (histRows.length > 0)
+        {
+            check(jsonToLong(histRows[0].object["value"]) == 10,
+                    "retention: historical value at insert epoch is 10");
+        }
+    }
 }
