@@ -113,6 +113,12 @@ struct Column
     /// is treated as "not provided" - explicitly serialize a literal empty
     /// default via a non-empty sentinel (e.g. "\0") if ever needed.
     string default_value;
+    /// Raw JSON scalar for a static default. Takes precedence over
+    /// default_value when non-empty.
+    string default_value_json;
+    /// Dynamic default discriminator: "now" or "uuid". Takes precedence over
+    /// both default-value fields.
+    string default_expr;
 
     ///
     /// Serialize to the JSON object expected by the daemon.
@@ -131,7 +137,15 @@ struct Column
         {
             obj["enum_variants"] = JSONValue(enum_variants.map!(s => JSONValue(s)).array);
         }
-        if (default_value.length > 0)
+        if (default_expr.length > 0)
+        {
+            obj["default_expr"] = JSONValue(default_expr);
+        }
+        else if (default_value_json.length > 0)
+        {
+            obj["default_value"] = parseJSON(default_value_json);
+        }
+        else if (default_value.length > 0)
         {
             obj["default_value"] = JSONValue(default_value);
         }
@@ -1047,5 +1061,25 @@ unittest
         assert(wire.canFind(`"id":1`), wire);
         assert(wire.canFind(`"name":"name"`), wire);
         assert(wire.canFind(`"ty":"varchar"`), wire);
+    }
+
+    {
+        auto c = Column(2, "attempts", "int64");
+        c.default_value_json = "3";
+        auto payload = c.toJson();
+        const wire = toJSON(payload);
+        assert(wire.canFind(`"default_value":3`), wire);
+        assert(!wire.canFind("default_expr"), wire);
+    }
+
+    {
+        auto c = Column(3, "created_at", "timestamp_nanos");
+        c.default_value = "legacy";
+        c.default_value_json = "3";
+        c.default_expr = "uuid";
+        auto payload = c.toJson();
+        const wire = toJSON(payload);
+        assert(wire.canFind(`"default_expr":"uuid"`), wire);
+        assert(!wire.canFind("default_value"), wire);
     }
 }

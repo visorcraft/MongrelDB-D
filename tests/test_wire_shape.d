@@ -30,7 +30,8 @@ int main()
     // Test 1: basic column - no enum_variants, no default_value.
     {
         auto c = Column(1, "id", "int64", true, false);
-        string wire = toJSON(c.toJson());
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
         assertContains(wire, `"id":1`, "basic");
         assertContains(wire, `"name":"id"`, "basic");
         assertContains(wire, `"ty":"int64"`, "basic");
@@ -41,11 +42,34 @@ int main()
         writeln("PASS: basic column wire shape");
     }
 
+    // Static JSON scalar default.
+    {
+        auto c = Column(4, "attempts", "int64");
+        c.default_value_json = "3";
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
+        assertContains(wire, `"default_value":3`, "static default");
+        assert(!wire.canFind("default_expr"), wire);
+    }
+
+    // Dynamic expression takes precedence over static defaults.
+    {
+        auto c = Column(5, "created_at", "timestamp_nanos");
+        c.default_value = "legacy";
+        c.default_value_json = "3";
+        c.default_expr = "now";
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
+        assertContains(wire, `"default_expr":"now"`, "dynamic default");
+        assert(!wire.canFind("default_value"), wire);
+    }
+
     // Test 2: column with enum_variants (no default_value).
     {
         auto c = Column(2, "status", "varchar", false, false,
                 cast(string[])["active", "inactive", "pending"], "");
-        string wire = toJSON(c.toJson());
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
         assertContains(wire, `"enum_variants":["active","inactive","pending"]`,
                 "enum_variants");
         assertNotContains(wire, "default_value", "enum_variants");
@@ -56,7 +80,8 @@ int main()
     {
         auto c = Column(3, "score", "float64", false, true,
                 cast(string[])[], "0.0");
-        string wire = toJSON(c.toJson());
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
         assertContains(wire, `"default_value":"0.0"`, "default_value");
         assertNotContains(wire, "enum_variants", "default_value");
         writeln("PASS: default_value wire shape");
@@ -66,8 +91,9 @@ int main()
     {
         auto constraints = parseJSON(
                 `{"checks":[{"id":1,"name":"score_nonneg","expr":{"Ge":[{"Col":1},{"Lit":{"Int64":0}}]}}]}`);
-        string wire = toJSON(createTablePayload("scores",
-                [Column(1, "score", "int64")], constraints));
+        auto payload = createTablePayload("scores",
+                [Column(1, "score", "int64")], constraints);
+        string wire = toJSON(payload);
         assertContains(wire, `"constraints":{"checks":[`, "constraints.checks");
         assertContains(wire, `"name":"score_nonneg"`, "CHECK name");
         writeln("PASS: CHECK constraints wire shape");

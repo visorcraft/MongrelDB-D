@@ -170,13 +170,14 @@ if (q.truncated)
 
 ## Column constraints
 
-A `Column` can carry two optional server-side hints alongside its type and
-flags: `enum_variants` (a closed set of allowed string values) and
-`default_value` (a server-applied fill when an insert omits the column).
+A `Column` can carry optional server-side hints alongside its type and
+flags: `enum_variants` (a closed set of allowed string values),
+`default_value_json` (a parsed static JSON scalar), and `default_expr` (`"now"`
+or `"uuid"`, taking precedence). The legacy string `default_value` remains
+supported.
 
-The `Column` constructor accepts them as two trailing positional arguments.
-Leaving either empty means "no constraint" / "no default" and the key is
-omitted from the wire payload, so existing callers see no change.
+The legacy fields remain trailing constructor arguments. Set
+`default_value_json` or `default_expr` by name. Empty fields are omitted.
 
 ```d
 // ty="enum" + non-empty enum_variants creates a closed-set column.
@@ -196,9 +197,7 @@ db.put("orders", [Cell.of(1, 1L), Cell.of(2, "pending")]);
 ```
 
 The engine rejects an `enum` column with an empty `enum_variants` list (400)
-and any `default_value` it does not recognize (400). Both fields are
-additive - existing tables created without them continue to round-trip
-byte-identically through the client.
+and an unknown `default_expr` (400). Existing callers remain compatible.
 
 See [`examples/column_constraints.d`](examples/column_constraints.d) for a
 complete runnable program.
