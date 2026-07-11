@@ -913,6 +913,10 @@ private MongrelDBException toException(int status, string body)
         }
     }
 
+    if (message.length >= 10 && message[0 .. 10] == "not found:")
+    {
+        return new NotFoundException(message, 404, code, opIndex);
+    }
     switch (status)
     {
     case 401, 403:

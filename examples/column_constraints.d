@@ -60,13 +60,14 @@ int main()
     // existing callers see no change.
     auto constraints = parseJSON(
         `{"checks":[{"id":1,"name":"positive_id","expr":{"Gt":[{"Col":1},{"Lit":{"Int64":0}}]}}]}`);
+    auto created = Column(3, "created_at", "varchar", false, false);
+    created.default_expr = "uuid";
     long tid = db.createTable(table, [
         Column(1, "id",         "int64",   true,  false),
         Column(2, "status",     "enum",    false, false,
                 cast(string[])["pending", "shipped", "cancelled"], ""),
-        Column(3, "created_at", "varchar", false, false,
-                cast(string[])[], "uuid"),
-        Column(4, "note",       "varchar", false, false,
+        created,
+        Column(4, "note",       "varchar", false, true,
                 cast(string[])[], ""),
     ], constraints);
     writeln("Created table ", table, " (id ", tid, ")");
