@@ -22,6 +22,8 @@
 |---|---|---|
 | D client | `mongreldb` | `dub add mongreldb` |
 
+History retention: `historyRetention` and `setHistoryRetentionEpochs`.
+
 ## Requirements
 
 - **D 2.100 or newer** (built and tested with LDC 1.42 / DMD 2.112)

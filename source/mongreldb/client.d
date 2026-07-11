@@ -153,6 +153,19 @@ struct Column
     }
 }
 
+struct HistoryRetention
+{
+    ulong historyRetentionEpochs;
+    ulong earliestRetainedEpoch;
+}
+
+private HistoryRetention decodeHistoryRetention(JSONValue value)
+{
+    return HistoryRetention(
+        cast(ulong)value["history_retention_epochs"].integer,
+        cast(ulong)value["earliest_retained_epoch"].integer);
+}
+
 /// Build the exact POST /kit/create_table JSON body.
 JSONValue createTablePayload(string name, Column[] columns,
         JSONValue constraints = JSONValue())
@@ -364,6 +377,17 @@ class MongrelDBClient
             out_ ~= (entry.type == JSONType.string) ? entry.str : entry.to!string;
         }
         return out_;
+    }
+
+    HistoryRetention historyRetention()
+    {
+        return decodeHistoryRetention(doGet("/history/retention"));
+    }
+
+    HistoryRetention setHistoryRetentionEpochs(ulong epochs)
+    {
+        auto body = JSONValue(["history_retention_epochs": JSONValue(epochs)]);
+        return decodeHistoryRetention(doPut("/history/retention", body));
     }
 
     ///
@@ -616,6 +640,12 @@ class MongrelDBClient
         {
             throw new QueryException("mongreldb: decode response: " ~ e.msg);
         }
+    }
+
+    JSONValue doPut(string path, JSONValue payload)
+    {
+        string body = rawRequest("PUT", path, toJSON(payload));
+        return body.length ? parseJSON(body) : JSONValue();
     }
 
     private void doDelete(string path)

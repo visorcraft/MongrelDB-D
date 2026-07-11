@@ -42,6 +42,16 @@ int main()
         writeln("PASS: basic column wire shape");
     }
 
+    foreach (value; [`"text"`, `true`, `null`, `"now"`])
+    {
+        auto c = Column(9, "value", "varchar");
+        c.default_value_json = value;
+        auto payload = c.toJson();
+        string wire = toJSON(payload);
+        assertContains(wire, `"default_value":` ~ value, "default matrix");
+        assertNotContains(wire, "default_expr", "literal default");
+    }
+
     // Static JSON scalar default.
     {
         auto c = Column(4, "attempts", "int64");
