@@ -10,7 +10,8 @@
 
 module test_wire_shape;
 
-import mongreldb.client : Column, MongrelDBClient, createTablePayload;
+import mongreldb.client : Column, MongrelDBClient, QueryException,
+        createTablePayload;
 import core.thread : Thread;
 import std.algorithm : canFind;
 import std.conv : to;
@@ -121,8 +122,11 @@ private string readFixedBody(Socket client, ref ubyte[8192] buf,
 
 // A tiny one-shot HTTP server used to verify the exact /history/retention
 // request shape. It records the first request it receives, answers any
-// Expect: 100-continue probe, then replies with `responseBody`.
-private void runMockServer(ushort port, string responseBody, CapturedRequest* captured)
+// Expect: 100-continue probe, then replies with `responseBody` and the
+// given `status` (default 200) so error-propagation tests can simulate
+// non-2xx responses.
+private void runMockServer(ushort port, string responseBody,
+        CapturedRequest* captured, int status = 200)
 {
     auto listener = new Socket(AddressFamily.INET, SocketType.STREAM, ProtocolType.TCP);
     scope (exit)
@@ -205,7 +209,9 @@ private void runMockServer(ushort port, string responseBody, CapturedRequest* ca
         captured.body = body;
     }
 
-    string response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n" ~
+    string statusText = status == 200 ? "OK" : "Error";
+    string response = "HTTP/1.1 " ~ status.to!string ~ " " ~ statusText ~
+            "\r\nContent-Type: application/json\r\n" ~
         "Content-Length: " ~ responseBody.length.to!string ~ "\r\n" ~
         "Connection: close\r\n\r\n" ~ responseBody;
     client.send(cast(ubyte[]) response);
@@ -291,6 +297,8 @@ int main()
         assert(cols[3]["default_value"].type == JSONType.null_, "decoded null default");
         assert(cols[4]["default_value"].str == "now", "decoded literal now");
         assert(cols[5]["default_expr"].str == "now", "decoded default_expr now");
+        assert("default_value" !in cols[5].object,
+                "default_expr column must not emit default_value");
 
         writeln("PASS: static-default matrix");
     }
@@ -394,6 +402,53 @@ int main()
         assert(earliest == 7, "retention GET response earliest_retained_epoch");
 
         writeln("PASS: /history/retention transport contract");
+    }
+
+    // Test 6: error propagation — a non-2xx response surfaces as a typed
+    // QueryException, not a silent success.
+    {
+        auto capErr = CapturedRequest();
+        long portErr = freePort();
+        string errBody = `{"message":"server overloaded","code":"UNAVAILABLE"}`;
+        auto t = new Thread(() =>
+                runMockServer(cast(ushort) portErr, errBody, &capErr, 503));
+        t.start();
+        Thread.sleep(dur!"msecs"(200));
+
+        auto db = new MongrelDBClient("http://127.0.0.1:" ~ portErr.to!string);
+
+        bool threw = false;
+        try
+        {
+            db.historyRetentionEpochs();
+        }
+        catch (QueryException)
+        {
+            threw = true;
+        }
+        assert(threw, "503 on GET must throw QueryException");
+
+        // Verify the PUT path also propagates the error.
+        auto capPut = CapturedRequest();
+        long portPut = freePort();
+        t = new Thread(() =>
+                runMockServer(cast(ushort) portPut, errBody, &capPut, 503));
+        t.start();
+        Thread.sleep(dur!"msecs"(200));
+
+        auto db2 = new MongrelDBClient("http://127.0.0.1:" ~ portPut.to!string);
+        threw = false;
+        try
+        {
+            db2.setHistoryRetentionEpochs(99);
+        }
+        catch (QueryException)
+        {
+            threw = true;
+        }
+        assert(threw, "503 on PUT must throw QueryException");
+
+        writeln("PASS: error propagation");
     }
 
     writeln("All wire-shape tests passed.");
