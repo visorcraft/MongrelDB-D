@@ -35,6 +35,8 @@ class QueryBuilder
     private long[] _projection;
     private bool _hasLimit;
     private long _limit;
+    private bool _hasOffset;
+    private long _offset;
     private bool _lastTruncated;
 
     ///
@@ -80,6 +82,14 @@ class QueryBuilder
         return this;
     }
 
+    /// Skip matching rows before applying the limit.
+    QueryBuilder offset(long n)
+    {
+        _hasOffset = true;
+        _offset = n;
+        return this;
+    }
+
     ///
     /// Build the request payload that will be sent to `/kit/query`.
     JSONValue build()
@@ -104,6 +114,10 @@ class QueryBuilder
         if (_hasLimit)
         {
             payload["limit"] = JSONValue(_limit);
+        }
+        if (_hasOffset)
+        {
+            payload["offset"] = JSONValue(_offset);
         }
         return payload;
     }
