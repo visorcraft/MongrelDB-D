@@ -814,12 +814,18 @@ class MongrelDBClient
 
 ///
 /// Flatten a slice of cells to the server's flat
-/// `[col_id, value, col_id, value, ...]` array. Pair order is not significant.
+/// `[col_id, value, ...]` array in ascending column-id order. Stable ordering
+/// is required for idempotency keys: the server hashes the request payload,
+/// and unordered pair order would make two commits of the same cells look like
+/// a reuse mismatch.
 JSONValue[] flattenCells(Cell[] cells)
 {
+    auto sorted = cells.dup;
+    import std.algorithm : sort;
+    sort!((a, b) => a.id < b.id)(sorted);
     JSONValue[] flat;
-    flat.reserve(cells.length * 2);
-    foreach (c; cells)
+    flat.reserve(sorted.length * 2);
+    foreach (c; sorted)
     {
         flat ~= JSONValue(c.id);
         flat ~= c.value;
