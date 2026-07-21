@@ -338,7 +338,33 @@ int main()
         writeln("PASS: CHECK constraints wire shape");
     }
 
-    // Test 5: /history/retention transport contract.
+    // Test 5: all indexes and model source.
+    {
+        auto embedding = Column(2, "embedding", "embedding(384)");
+        embedding.embedding_source_json =
+                `{"kind":"configured_model","provider_id":"docs","model_id":"model","model_version":"1"}`;
+        auto indexes = parseJSON(`[
+          {"name":"bm","column_id":1,"kind":"bitmap"},
+          {"name":"fm","column_id":1,"kind":"fm_index"},
+          {"name":"ann","column_id":2,"kind":"ann","predicate":"embedding IS NOT NULL","options":{"ann":{"m":24,"ef_construction":96,"ef_search":48,"quantization":"dense"}}},
+          {"name":"range","column_id":1,"kind":"learned_range","options":{"learned_range":{"epsilon":8}}},
+          {"name":"minhash","column_id":1,"kind":"minhash","options":{"minhash":{"permutations":64,"bands":16}}},
+          {"name":"sparse","column_id":1,"kind":"sparse"}
+        ]`);
+        auto payload = createTablePayload("search_docs",
+                [Column(1, "id", "int64", true), embedding], JSONValue(), indexes);
+        string wire = toJSON(payload);
+        assertContains(wire, `"embedding_source":{"kind":"configured_model"`, "embedding source");
+        foreach (kind; ["bitmap", "fm_index", "ann", "learned_range", "minhash", "sparse"])
+            assertContains(wire, `"kind":"` ~ kind ~ `"`, kind ~ " index");
+        assertContains(wire, `"quantization":"dense"`, "Dense ANN");
+        assertContains(wire, `"predicate":"embedding IS NOT NULL"`, "index predicate");
+        assertContains(wire, `"epsilon":8`, "learned range options");
+        assertContains(wire, `"permutations":64`, "MinHash options");
+        writeln("PASS: all index kinds and embedding source wire shape");
+    }
+
+    // Test 6: /history/retention transport contract.
     {
         auto capPut = CapturedRequest();
         long portPut = freePort();

@@ -324,7 +324,7 @@ catch (QueryException e)
 | `historyRetentionEpochs()` | Configured retention window (epoch count) |
 | `earliestRetainedEpoch()` | Oldest epoch still available for `AS OF EPOCH` |
 | `setHistoryRetentionEpochs(epochs)` | Set the retention window; requires admin |
-| `createTable(name, columns)` / `createTable(name, columns, constraints)` | Create a table; the third argument forwards the native constraints object |
+| `createTable(name, columns, constraints, indexes)` | Create a table with optional constraints and all index definitions |
 | `dropTable(name)` | Drop a table |
 | `count(table)` | Row count |
 | `put(table, cells, idempotencyKey = null)` | Insert a row |

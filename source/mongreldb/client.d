@@ -119,6 +119,8 @@ struct Column
     /// Dynamic default discriminator: "now" or "uuid". Takes precedence over
     /// both default-value fields.
     string default_expr;
+    /// Portable EmbeddingSource JSON. Empty = application-supplied vectors.
+    string embedding_source_json;
 
     ///
     /// Serialize to the JSON object expected by the daemon.
@@ -148,6 +150,10 @@ struct Column
         else if (default_value.length > 0)
         {
             obj["default_value"] = JSONValue(default_value);
+        }
+        if (embedding_source_json.length > 0)
+        {
+            obj["embedding_source"] = parseJSON(embedding_source_json);
         }
         return obj;
     }
@@ -190,7 +196,7 @@ private HistoryRetention decodeHistoryRetention(JSONValue value)
 
 /// Build the exact POST /kit/create_table JSON body.
 JSONValue createTablePayload(string name, Column[] columns,
-        JSONValue constraints = JSONValue())
+        JSONValue constraints = JSONValue(), JSONValue indexes = JSONValue())
 {
     import std.algorithm : map;
     import std.array : array;
@@ -201,6 +207,10 @@ JSONValue createTablePayload(string name, Column[] columns,
     if (constraints.type == JSONType.object)
     {
         payload["constraints"] = constraints;
+    }
+    if (indexes.type == JSONType.array)
+    {
+        payload["indexes"] = indexes;
     }
     return payload;
 }
@@ -431,9 +441,9 @@ class MongrelDBClient
     /// Create a table named `name` with the given columns and return the
     /// assigned table id.
     long createTable(string name, Column[] columns,
-            JSONValue constraints = JSONValue())
+            JSONValue constraints = JSONValue(), JSONValue indexes = JSONValue())
     {
-        auto payload = createTablePayload(name, columns, constraints);
+        auto payload = createTablePayload(name, columns, constraints, indexes);
         JSONValue resp = doPost("/kit/create_table", payload);
         if (resp.type == JSONType.object)
         {
