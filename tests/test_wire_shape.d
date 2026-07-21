@@ -346,7 +346,7 @@ int main()
         auto indexes = parseJSON(`[
           {"name":"bm","column_id":1,"kind":"bitmap"},
           {"name":"fm","column_id":1,"kind":"fm_index"},
-          {"name":"ann","column_id":2,"kind":"ann","predicate":"embedding IS NOT NULL","options":{"ann":{"m":24,"ef_construction":96,"ef_search":48,"quantization":"dense"}}},
+          {"name":"ann","column_id":2,"kind":"ann","predicate":"embedding IS NOT NULL","options":{"ann":{"m":24,"ef_construction":96,"ef_search":48,"quantization":"dense","algorithm":"diskann","diskann":{"r":64,"l":128,"beam_width":8,"alpha":120}}}},
           {"name":"range","column_id":1,"kind":"learned_range","options":{"learned_range":{"epsilon":8}}},
           {"name":"minhash","column_id":1,"kind":"minhash","options":{"minhash":{"permutations":64,"bands":16}}},
           {"name":"sparse","column_id":1,"kind":"sparse"}
@@ -358,6 +358,8 @@ int main()
         foreach (kind; ["bitmap", "fm_index", "ann", "learned_range", "minhash", "sparse"])
             assertContains(wire, `"kind":"` ~ kind ~ `"`, kind ~ " index");
         assertContains(wire, `"quantization":"dense"`, "Dense ANN");
+        assertContains(wire, `"algorithm":"diskann"`, "DiskANN algorithm");
+        assertContains(wire, `"beam_width":8`, "DiskANN options");
         assertContains(wire, `"predicate":"embedding IS NOT NULL"`, "index predicate");
         assertContains(wire, `"epsilon":8`, "learned range options");
         assertContains(wire, `"permutations":64`, "MinHash options");
