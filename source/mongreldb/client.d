@@ -286,6 +286,121 @@ class ConflictException : MongrelDBException
 /// Raised for HTTP 400 or 5xx, and for any other request-level failure not
 /// covered by the more specific subclasses. Also used for transport failures
 /// (status `-1`).
+/// Structural HLC from durable recovery (0.64+).
+struct CommitHlc
+{
+    long physicalMicros;
+    int logical;
+    int nodeTiebreaker;
+}
+
+/// Nested durable recovery payload.
+struct DurableOutcome
+{
+    Nullable!bool committed;
+    Nullable!long lastCommitEpoch;
+    Nullable!CommitHlc lastCommitHlc;
+    string serialization;
+    string serializationState;
+    string terminalState;
+}
+
+/// GET /queries/{query_id} decoded status.
+struct QueryStatus
+{
+    string queryId;
+    string status;
+    string state;
+    string serverState;
+    string terminalState;
+    Nullable!bool committed;
+    Nullable!long lastCommitEpoch;
+    Nullable!CommitHlc lastCommitHlc;
+    DurableOutcome outcome;
+    Nullable!DurableOutcome durable;
+    JSONValue raw;
+
+    /// Authoritative HLC: durable → outcome → top-level.
+    Nullable!CommitHlc commitHlc() const
+    {
+        if (!durable.isNull && !durable.get.lastCommitHlc.isNull)
+            return durable.get.lastCommitHlc;
+        if (!outcome.lastCommitHlc.isNull)
+            return outcome.lastCommitHlc;
+        return lastCommitHlc;
+    }
+
+    string serializationStateValue() const
+    {
+        if (!durable.isNull)
+        {
+            if (durable.get.serializationState.length > 0)
+                return durable.get.serializationState;
+            if (durable.get.serialization.length > 0)
+                return durable.get.serialization;
+        }
+        if (outcome.serializationState.length > 0)
+            return outcome.serializationState;
+        return outcome.serialization;
+    }
+
+    static Nullable!CommitHlc parseCommitHlc(JSONValue raw)
+    {
+        if (raw.type != JSONType.object || "physical_micros" !in raw.object)
+            return Nullable!CommitHlc.init;
+        CommitHlc h;
+        h.physicalMicros = raw["physical_micros"].integer;
+        h.logical = ("logical" in raw.object) ? cast(int) raw["logical"].integer : 0;
+        h.nodeTiebreaker = ("node_tiebreaker" in raw.object)
+            ? cast(int) raw["node_tiebreaker"].integer : 0;
+        return Nullable!CommitHlc(h);
+    }
+
+    static DurableOutcome parseDurableOutcome(JSONValue raw)
+    {
+        DurableOutcome o;
+        if (raw.type != JSONType.object)
+            return o;
+        if ("committed" in raw.object
+                && (raw["committed"].type == JSONType.true_ || raw["committed"].type == JSONType.false_))
+            o.committed = Nullable!bool(raw["committed"].type == JSONType.true_);
+        if ("last_commit_epoch" in raw.object)
+            o.lastCommitEpoch = Nullable!long(raw["last_commit_epoch"].integer);
+        if ("last_commit_hlc" in raw.object)
+            o.lastCommitHlc = parseCommitHlc(raw["last_commit_hlc"]);
+        if ("serialization" in raw.object)
+            o.serialization = raw["serialization"].str;
+        if ("serialization_state" in raw.object)
+            o.serializationState = raw["serialization_state"].str;
+        if ("terminal_state" in raw.object)
+            o.terminalState = raw["terminal_state"].str;
+        return o;
+    }
+
+    static QueryStatus parse(JSONValue raw)
+    {
+        QueryStatus s;
+        s.raw = raw;
+        if (raw.type != JSONType.object)
+            return s;
+        if ("query_id" in raw.object) s.queryId = raw["query_id"].str;
+        if ("status" in raw.object) s.status = raw["status"].str;
+        if ("state" in raw.object) s.state = raw["state"].str;
+        s.serverState = ("server_state" in raw.object) ? raw["server_state"].str : s.state;
+        if ("terminal_state" in raw.object) s.terminalState = raw["terminal_state"].str;
+        if ("committed" in raw.object)
+            s.committed = Nullable!bool(raw["committed"].type == JSONType.true_);
+        if ("last_commit_epoch" in raw.object)
+            s.lastCommitEpoch = Nullable!long(raw["last_commit_epoch"].integer);
+        if ("last_commit_hlc" in raw.object)
+            s.lastCommitHlc = parseCommitHlc(raw["last_commit_hlc"]);
+        s.outcome = parseDurableOutcome(("outcome" in raw.object) ? raw["outcome"] : JSONValue.init);
+        if ("durable" in raw.object && raw["durable"].type == JSONType.object)
+            s.durable = Nullable!DurableOutcome(parseDurableOutcome(raw["durable"]));
+        return s;
+    }
+}
+
 class QueryException : MongrelDBException
 {
     this(string msg, int status = -1, string code = null,
@@ -571,6 +686,77 @@ class MongrelDBClient
     Transaction begin()
     {
         return new Transaction(this);
+    }
+
+    // ── Durable recovery + retrieve_text (0.64+) ─────────────────────────
+
+    /// Text → embed → ANN retrieve (POST /kit/retrieve_text, 0.64+).
+    JSONValue retrieveText(string table, int embeddingColumn, string text,
+            Nullable!int k = Nullable!int.init,
+            Nullable!long deadlineMs = Nullable!long.init,
+            Nullable!long maxWork = Nullable!long.init)
+    {
+        if (table.length == 0)
+            throw new QueryException("table is required");
+        if (text.length == 0)
+            throw new QueryException("text is required");
+        auto payload = JSONValue([JSONValue()]);
+        payload.object = null;
+        payload["table"] = JSONValue(table);
+        payload["embedding_column"] = JSONValue(embeddingColumn);
+        payload["text"] = JSONValue(text);
+        if (!k.isNull)
+            payload["k"] = JSONValue(k.get);
+        if (!deadlineMs.isNull)
+            payload["deadline_ms"] = JSONValue(deadlineMs.get);
+        if (!maxWork.isNull)
+            payload["max_work"] = JSONValue(maxWork.get);
+        JSONValue resp = doPost("/kit/retrieve_text", payload);
+        if (resp.type != JSONType.object)
+        {
+            auto empty = JSONValue([JSONValue()]);
+            empty.object = null;
+            empty["hits"] = JSONValue(cast(JSONValue[])[]);
+            empty["provenance"] = JSONValue([JSONValue()]);
+            empty["provenance"].object = null;
+            return empty;
+        }
+        if ("hits" !in resp.object)
+            resp["hits"] = JSONValue(cast(JSONValue[])[]);
+        if ("provenance" !in resp.object)
+        {
+            resp["provenance"] = JSONValue([JSONValue()]);
+            resp["provenance"].object = null;
+        }
+        return resp;
+    }
+
+    /// Retained SQL status for durable recovery (GET /queries/{query_id}).
+    QueryStatus queryStatus(string queryId)
+    {
+        if (queryId.length == 0)
+            throw new QueryException("query_id is required");
+        JSONValue v = doGet("/queries/" ~ urlPathEscape(queryId));
+        if (v.type != JSONType.object)
+            throw new QueryException("query status response was not a JSON object");
+        return QueryStatus.parse(v);
+    }
+
+    /// Request cancellation of a running SQL query.
+    JSONValue cancelQuery(string queryId)
+    {
+        if (queryId.length == 0)
+            throw new QueryException("query_id is required");
+        auto payload = JSONValue([JSONValue()]);
+        payload.object = null;
+        JSONValue resp = doPost("/queries/" ~ urlPathEscape(queryId) ~ "/cancel", payload);
+        if (resp.type != JSONType.object)
+        {
+            auto empty = JSONValue([JSONValue()]);
+            empty.object = null;
+            return empty;
+        }
+        return resp;
     }
 
     // ── SQL ──────────────────────────────────────────────────────────────
@@ -1138,6 +1324,58 @@ unittest
     // '/' is now encoded so it cannot inject an extra path segment.
     assert(urlPathEscape("a/b") == "a%2Fb");
     assert(urlPathEscape("a b") == "a%20b");
+}
+
+unittest
+{
+    // Structural durable HLC parse (0.64+).
+    auto fixture = parseJSON(`{
+      "query_id": "abcdefabcdefabcdefabcdefabcdefab",
+      "status": "committed",
+      "state": "completed",
+      "server_state": "completed",
+      "terminal_state": "committed",
+      "committed": true,
+      "last_commit_epoch": 17,
+      "last_commit_hlc": {
+        "physical_micros": 1700000000000000,
+        "logical": 3,
+        "node_tiebreaker": 7
+      },
+      "outcome": {
+        "committed": true,
+        "last_commit_epoch": 17,
+        "last_commit_hlc": {
+          "physical_micros": 1700000000000000,
+          "logical": 3,
+          "node_tiebreaker": 7
+        },
+        "serialization": "succeeded",
+        "serialization_state": "succeeded",
+        "terminal_state": "committed"
+      },
+      "durable": {
+        "committed": true,
+        "last_commit_epoch": 17,
+        "last_commit_hlc": {
+          "physical_micros": 1700000000000000,
+          "logical": 3,
+          "node_tiebreaker": 7
+        },
+        "serialization": "succeeded",
+        "serialization_state": "succeeded",
+        "terminal_state": "committed"
+      }
+    }`);
+    auto status = QueryStatus.parse(fixture);
+    assert(!status.committed.isNull && status.committed.get);
+    auto hlc = status.commitHlc();
+    assert(!hlc.isNull);
+    assert(hlc.get.physicalMicros == 1700000000000000L);
+    assert(hlc.get.logical == 3);
+    assert(hlc.get.nodeTiebreaker == 7);
+    assert(status.serializationStateValue() == "succeeded");
+    assert(QueryStatus.parseCommitHlc(JSONValue.init).isNull);
 }
 
 // Wire-shape conformance: Column.toJson() must emit exactly the keys the
