@@ -47,5 +47,5 @@
             "mainSourceFile": "tests/test_wire_shape.d"
         }
     ],
-    "version": "0.64.5"
+    "version": "0.64.6"
 }
