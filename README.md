@@ -20,7 +20,15 @@
 
 | Surface | Package | Install |
 |---|---|---|
-| D client | `mongreldb` | `dub add mongreldb` |
+| D client | `mongreldb` | not on code.dlang.org yet - clone this repo, then `dub add-local .` |
+
+Register the checkout as a local package, or reference it with a `path`
+dependency from your own `dub.json`:
+
+```sh
+git clone https://github.com/visorcraft/MongrelDB-D.git
+dub add-local MongrelDB-D
+```
 
 History retention: `historyRetention` and `setHistoryRetentionEpochs`.
 
