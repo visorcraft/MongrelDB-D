@@ -63,22 +63,26 @@ Leave the daemon running for the rest of this guide.
 
 ## 3. Create a project and pull in the client
 
-The client is published as the `mongreldb` DUB package. Add it as a path
-dependency (it is pure Phobos, so there is nothing else to fetch):
+The client is not on code.dlang.org yet, so clone the repo and register it
+as a local DUB package (it is pure Phobos, so there is nothing else to
+fetch):
 
 ```sh
+git clone https://github.com/visorcraft/MongrelDB-D.git
+dub add-local MongrelDB-D
+
 mkdir demo && cd demo
 dub init
-dub add mongreldb
 ```
 
-This adds the dependency to `dub.json`. If you are vendoring the source
-locally instead, point a `path` dependency at the checkout:
+Then add `mongreldb` to the `dependencies` in `dub.json`; the locally
+registered checkout satisfies the version constraint. Alternatively, skip
+`dub add-local` and point a `path` dependency directly at the checkout:
 
 ```json
 {
     "dependencies": {
-        "mongreldb": {"path": "../mongreldb_d"}
+        "mongreldb": {"path": "../MongrelDB-D"}
     }
 }
 ```
